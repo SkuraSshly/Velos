@@ -1,6 +1,6 @@
 import AppKit
-
 import Combine
+import Quartz
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -22,6 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         PermissionManager.shared.refresh()
         CaptureCoordinator.shared.start()
+        ScreenshotHistory.shared.start()
+        ClotheslineUndo.shared.finalizeAll()   // 上次退出时没处理完的取下（异常退出才会有）
+        ClotheslineController.shared.start()
+        UpdateChecker.shared.start()   // 默认不自动检查：设置里打开了才定时去问
         LaunchAtLogin.shared.reregisterIfEnabled()   // 登录项指向正在运行的这一份 App
         ScreenTranslateController.shared.warmUpAllIfNeeded()   // 一次性：让系统预先编译文字识别模型
         DispatchQueue.global(qos: .utility).async { CapturedImage.removeStaleSharingFiles() }
@@ -52,6 +56,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 程序坞图标的右键菜单（显示程序坞图标时）
     func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
         statusBar?.makeDockMenu()
+    }
+
+    // MARK: 快速查看（晾衣绳上按空格）
+
+    /// 系统的快速查看窗口按响应链找谁提供内容：Velos 没有焦点窗口时问到这里，转给晾衣绳
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { ClotheslineQuickLook.shared.take(panel) }
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { ClotheslineQuickLook.shared.release(panel) }
+
+
+    /// 访达里「打开方式 → Velos」、把图片拖到程序坞里的 Velos 图标上：挂到晾衣绳上
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard !SettingsProcess.isSettingsProcess else { return }
+        guard ClotheslineController.shared.isEnabled else {
+            let alert = NSAlert()
+            alert.messageText = "晾衣绳没有打开"
+            alert.informativeText = "在 设置 › 晾衣绳 里打开「使用晾衣绳」后，就能从访达把图片、录屏挂上去。"
+            alert.addButton(withTitle: "打开设置")
+            alert.addButton(withTitle: "好")
+            NSApp.activate()
+            if alert.runModal() == .alertFirstButtonReturn { SettingsLauncher.open(.clothesline) }
+            return
+        }
+        ClotheslineIntake.hang(files: urls)
+    }
+
+    /// 退出前：晾衣绳上暂存着等撤销的，按原来的意思处理掉（取下的进废纸篓）
+    func applicationWillTerminate(_ notification: Notification) {
+        guard !SettingsProcess.isSettingsProcess else { return }
+        ClotheslineUndo.shared.finalizeAll()
     }
 
     /// Velos 已在运行时再次打开它，或者点了程序坞里的图标：打开设置窗口

@@ -2,7 +2,8 @@
 
 ## 代码和依赖
 
-Velos **没有使用任何第三方库、框架或代码**（`Package.swift` 里没有外部依赖），也没有打包任何第三方字体、图片或声音。
+Velos **没有使用任何第三方库或框架**（`Package.swift` 里没有外部依赖），也没有打包任何第三方字体、图片或声音。
+晾衣绳的部分代码从两个 MIT 许可的开源项目移植、改写而来，见下面「移植的代码」。
 App 只调用 macOS 自带的系统框架，它们属于操作系统，不随 Velos 分发：
 
 | 用途 | 系统框架 |
@@ -17,6 +18,46 @@ App 只调用 macOS 自带的系统框架，它们属于操作系统，不随 Ve
 | 在线引擎的请求签名 | CryptoKit |
 
 SF Symbols 按 Apple 的许可只在 Apple 平台的 App 界面里使用。
+
+## 移植的代码
+
+下面是从开源项目移植、改写进 Velos 源码的代码，按它们的许可证保留版权声明。
+
+### Picline
+
+- 项目：https://github.com/Xinguangcuican/Picline（Tendedero 的修改分支）
+- 用到的地方：晾衣绳的照片大小、保留数量与滚动、⇧ 连选、共享、打开、接收剪贴板图片、拖到屏幕顶部挂上、卡片的晃动和风
+- 许可证：MIT，沿用下面 Tendedero 的版权声明
+
+### Tendedero
+
+- 项目：https://github.com/alejandrobujan/tendedero
+- 用到的地方：晾衣绳（`Sources/Velos/Clothesline/`）的界面、卡片上的鼠标操作、面板和放下 / 收起的规则、截图飞到绳上的动画，改写成以 Velos 的「最近截图」为数据，并把鼠标检测从定时查询改成系统通知
+- 许可证：MIT（只适用于代码；Tendedero 的名字和图标不在授权范围内，Velos 没有使用）
+
+```
+MIT License
+
+Copyright (c) 2026 Alejandro Buján
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## 参考
 

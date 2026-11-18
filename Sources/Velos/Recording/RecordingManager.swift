@@ -32,6 +32,8 @@ final class RecordingManager: ObservableObject {
     private var countdown: RecordingCountdown?
     private var highlighter: ClickHighlighter?
     private var screen: NSScreen?
+    /// 录的那块区域（全局坐标）：录完后挂到晾衣绳上时，从这里飞上去
+    private var region: CGRect?
     /// 录制期间监听的系统事件（熄屏、锁屏、切换用户、睡眠），停止录制时移除
     private var systemObservers: [(NotificationCenter, NSObjectProtocol)] = []
     /// 锁屏是全系统的分布式通知：要「立即送达」（Velos 平时不是前台 App，否则系统会把它攒到 Velos 变成前台才送）
@@ -119,6 +121,7 @@ final class RecordingManager: ObservableObject {
                 try await recorder.start()
                 self.recorder = recorder
                 screen = target.screen
+                region = target.rect
                 capturesMicrophone = recorder.settings.capturesMicrophone
                 isMicrophoneMuted = false
                 state = .recording
@@ -346,12 +349,29 @@ final class RecordingManager: ObservableObject {
             showError("录屏保存失败", error)
         }
         let screen = self.screen
+        let region = self.region
         self.recorder = nil
         self.screen = nil
+        self.region = nil
         isMicrophoneMuted = false
         capturesMicrophone = false
         state = .idle
-        if let savedURL, Preferences.shared.recordingShowThumbnail {
+        // 开着晾衣绳：录完的视频直接挂到绳上（绳子放下来给你看），不在角落出缩略图；
+        // 存的是指向这个文件的替身，从绳上取下不会删录屏。没开晾衣绳时照旧显示缩略图
+        if let savedURL, ClotheslineController.shared.isEnabled {
+            if Preferences.shared.recordingShowThumbnail {
+                // 和截图走完全一样的过程：先取出第一帧，在录的那块区域原位「咔嚓」一下被拎起来，
+                // 等挂进绳子、绳子放下来后再飞上去。取不出画面时退回旧办法（挂好后从原位咔嚓再飞）
+                let rect = region ?? screen?.frame ?? .zero
+                let pixels = Int(max(rect.width, rect.height) * (screen?.backingScaleFactor ?? 2))
+                if let frame = await ScreenshotHistory.firstFrame(of: savedURL, maxPixels: min(1500, max(400, pixels))) {
+                    ClotheslineController.shared.showNextCapture(near: rect, image: frame)
+                } else {
+                    ClotheslineController.shared.showNextCapture(near: rect, flies: true)
+                }
+            }
+            ScreenshotHistory.shared.recordLinked(savedURL)
+        } else if let savedURL, Preferences.shared.recordingShowThumbnail {
             await ThumbnailManager.shared.showRecording(savedURL, on: screen)
         }
     }

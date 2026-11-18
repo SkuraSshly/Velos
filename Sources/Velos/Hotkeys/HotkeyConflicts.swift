@@ -112,13 +112,3 @@ enum HotkeyConflicts {
         return result
     }
 }
-
-extension HotkeyManager.Action {
-    var title: String {
-        switch self {
-        case .screenshot: "截图"
-        case .recording: "录屏"
-        case .translate: "截屏翻译"
-        }
-    }
-}

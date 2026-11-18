@@ -90,6 +90,7 @@ final class AnnotationEditorWindowController: NSObject, NSWindowDelegate {
         super.init()
 
         window.title = "编辑截图"
+        window.allowFullScreen()
         // 暖色风格：标题栏和窗口底色都是暖色的「桌面」，图片像一张纸放在上面
         window.titlebarAppearsTransparent = true
         window.backgroundColor = EditorZoomView.deskColor
@@ -219,6 +220,7 @@ final class AnnotationEditorWindowController: NSObject, NSWindowDelegate {
             guard let image = render() else { return }
             window.close()
             _ = PinManager.shared.pin(CapturedImage(image: image, scale: capture.scale, sourceRect: capture.sourceRect))
+            if !annotator.document.isEmpty { ScreenshotHistory.shared.record(image, scale: capture.scale) }
         }
     }
 

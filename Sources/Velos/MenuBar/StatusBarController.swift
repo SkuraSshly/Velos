@@ -40,7 +40,9 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func setIconVisible(_ visible: Bool) {
         if visible, statusItem == nil {
             let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            item.button?.toolTip = "Velos"
+            // 不设悬停提示：菜单栏图标的提示框在绳子从顶部放下来、菜单打开时容易收不到「鼠标离开」，
+            // 一个「Velos」小标签就会一直停在屏幕上。名字给读屏用
+            item.button?.setAccessibilityLabel("Velos")
             item.menu = menu
             statusItem = item
             updateIcon()
@@ -78,13 +80,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             button.attributedTitle = NSAttributedString(string: " " + DurationFormat.clock(manager.elapsed), attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .medium),
             ])
-            button.toolTip = (paused ? "录制已暂停" : "正在录制") + " · \(CaptureCoordinator.shared.recordingHotkey.displayString) 停止"
+            button.setAccessibilityLabel((paused ? "录制已暂停" : "正在录制") + " · \(CaptureCoordinator.shared.recordingHotkey.displayString) 停止")
         } else {
             item.length = NSStatusItem.squareLength
             button.image = VelosMark.menuBar   // 自己画的花体 V（模板图：自动适配浅色 / 深色菜单栏）
             button.imagePosition = .imageOnly
             button.title = ""
-            button.toolTip = "Velos"
+            button.setAccessibilityLabel("Velos")
         }
     }
 
@@ -94,6 +96,18 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         PermissionManager.shared.refresh()
         rebuildMenu()
+    }
+
+    /// 菜单开着时，全局快捷键会被系统压着、等菜单关了才送到（按 ⌥A 没反应，关菜单时才开始截图）。
+    /// 所以菜单开着时先把全局快捷键让出来：按键直接交给菜单，菜单项上标着同样的快捷键，按 ⌥A 就是点「截图」，菜单随即关上
+    func menuWillOpen(_ menu: NSMenu) {
+        guard menu === self.menu else { return }
+        HotkeyManager.shared.pauseAll()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard menu === self.menu else { return }
+        HotkeyManager.shared.resumeAll()
     }
 
     /// 程序坞图标的右键菜单：和菜单栏菜单一样的内容（不带快捷键提示；「退出」由系统自己加在程序坞菜单里）
@@ -127,42 +141,39 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         }
 
         // 菜单里的快捷键只做显示，真正的全局快捷键由 HotkeyManager 注册
-        let shotKey = CaptureCoordinator.shared.screenshotHotkey
-        let recordKey = CaptureCoordinator.shared.recordingHotkey
-        let translateKey = CaptureCoordinator.shared.translateHotkey
         let recordingState = RecordingManager.shared.state
 
+        // 菜单尽量简单：四个功能 + 设置 + 退出。录制中「录屏」变成「停止录制」（暂停在录制控制条上）
+        func addAction(_ title: String, _ action: HotkeyManager.Action, _ selector: Selector) -> NSMenuItem {
+            let key = CaptureCoordinator.shared.hotkey(for: action)
+            return addItem(title, action: selector, key: key.menuKeyEquivalent, modifiers: key.cocoaModifiers)
+        }
+        _ = addAction("截图", .screenshot, #selector(takeScreenshot))
         if recordingState == .recording || recordingState == .paused {
-            let stop = addItem("停止录制", action: #selector(stopRecording),
-                               key: recordKey.menuKeyEquivalent, modifiers: recordKey.cocoaModifiers)
-            stop.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: nil)
-            let paused = recordingState == .paused
-            let pause = addItem(paused ? "继续录制" : "暂停录制", action: #selector(togglePause))
-            pause.image = NSImage(systemSymbolName: paused ? "play.circle" : "pause.circle", accessibilityDescription: nil)
-            menu.addItem(.separator())
+            _ = addAction("停止录制", .recording, #selector(stopRecording))
+        } else {
+            let record = addAction("录屏", .recording, #selector(startRecording))
+            record.isEnabled = recordingState == .idle
+        }
+        _ = addAction("截屏翻译", .translate, #selector(startTranslate))
+        if Preferences.shared.clotheslineEnabled {
+            _ = addAction("晾衣绳", .clothesline, #selector(toggleClothesline))
         }
 
-        addItem("截图", action: #selector(takeScreenshot), key: shotKey.menuKeyEquivalent, modifiers: shotKey.cocoaModifiers)
-        let record = addItem("录屏", action: #selector(startRecording),
-                             key: recordKey.menuKeyEquivalent, modifiers: recordKey.cocoaModifiers)
-        record.isEnabled = recordingState == .idle
-        addItem("截屏翻译", action: #selector(startTranslate),
-                key: translateKey.menuKeyEquivalent, modifiers: translateKey.cocoaModifiers)
-
-        for (action, key) in [(HotkeyManager.Action.screenshot, shotKey), (.recording, recordKey), (.translate, translateKey)]
-        where HotkeyManager.shared.failedActions.contains(action) {
-            let warning = addItem("快捷键 \(key.displayString) 已被其他程序占用", action: nil)
-            warning.isEnabled = false
-        }
-
-        // 转 GIF、打开文件夹都在设置里（录屏 › GIF、通用 › 保存位置）
         menu.addItem(.separator())
+        // 有快捷键被别的程序占用：只出一行，点了去快捷键设置看是哪个
+        if !HotkeyManager.shared.failedActions.isEmpty {
+            let warning = addItem("有快捷键被其他程序占用…", action: #selector(openHotkeySettings))
+            warning.image = NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)
+        }
         addItem("设置…", action: #selector(openSettings), key: ",")
         guard !forDock else { return }
-        menu.addItem(.separator())
-
         let quit = addItem("退出 Velos", action: #selector(NSApplication.terminate(_:)), key: "q")
         quit.target = NSApp
+    }
+
+    @objc private func openHotkeySettings() {
+        SettingsLauncher.open(.hotkeys)
     }
 
     @objc private func takeScreenshot() {
@@ -179,12 +190,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         CaptureCoordinator.shared.beginScreenshot(delay: .milliseconds(250), purpose: .translate)
     }
 
-    @objc private func stopRecording() {
-        Task { await RecordingManager.shared.stop() }
+    @objc private func toggleClothesline() {
+        // 等菜单收起后再放下来（菜单开着时点菜单栏会把绳子收回去）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { ClotheslineController.shared.toggle() }
     }
 
-    @objc private func togglePause() {
-        RecordingManager.shared.togglePause()
+    @objc private func stopRecording() {
+        Task { await RecordingManager.shared.stop() }
     }
 
     @objc private func showPermissions() {

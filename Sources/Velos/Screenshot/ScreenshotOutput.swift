@@ -14,6 +14,8 @@ struct OutputOptions {
     var downscaleTo1x: Bool
     var directory: URL
     var pasteboard: NSPasteboard
+    /// 记进「最近截图」
+    var recordsHistory: Bool
 
     @MainActor
     static func current() -> OutputOptions {
@@ -27,7 +29,8 @@ struct OutputOptions {
             quality: prefs.jpegQuality,
             downscaleTo1x: prefs.screenshotSaveAs1x,
             directory: SaveLocation.directory(for: .screenshot),
-            pasteboard: .general
+            pasteboard: .general,
+            recordsHistory: prefs.historyEnabled
         )
     }
 }
@@ -80,11 +83,16 @@ enum ScreenshotOutput {
         let options = resolvedOptions(options, forceSave: forceSave)
         let capture = CapturedImage(image: image, scale: scale, sourceRect: sourceRect)
 
-        // 缩略图先出现（不等编码），手感更快
+        // 开着晾衣绳时：截图直接挂到绳上（绳子放下来一会儿），不再在角落显示缩略图；
+        // 否则缩略图先出现（不等编码），手感更快
         if options.showThumbnail {
-            ThumbnailManager.shared.show(capture)
+            if options.recordsHistory, ClotheslineController.shared.isEnabled {
+                ClotheslineController.shared.showNextCapture(near: sourceRect, image: image)
+            } else {
+                ThumbnailManager.shared.show(capture)
+            }
         }
-        guard options.copyToClipboard || options.saveToFile else { return }
+        guard options.copyToClipboard || options.saveToFile || options.recordsHistory else { return }
 
         // 截图一被粘贴（有程序来读剪贴板），对应的缩略图就完成了使命，自动收起。
         // 弱引用：剪贴板内容可能保留很久，不能因此一直占着这张截图的内存
@@ -98,8 +106,15 @@ enum ScreenshotOutput {
 
         // 文件名在主线程确定（与截图时间一致），编码和写文件放到后台
         let fileName = SaveLocation.fileName(prefix: "截图", fileExtension: options.format.fileExtension, date: capture.date)
+        let date = capture.date
         Task.detached(priority: .userInitiated) {
             let result = encodeAndSave(image, scale: scale, fileName: fileName, options: options)
+            // 最近截图：存原生分辨率的无损 PNG（已经编码过就直接用）
+            if options.recordsHistory, let png = result.nativePNG ?? ImageEncoder.encode(image, format: .png, quality: 1, scale: scale) {
+                // 先记下存成了哪个文件，再挂上绳（挂上时绳子就知道它存过了）
+                if let url = result.fileURL { ScreenshotHistory.noteSaved(url, image: image) }
+                ScreenshotHistory.write(png: png, image: image, scale: scale, date: date)
+            }
             await MainActor.run {
                 if let png = result.png {
                     ClipboardWriter.write(png: png, to: options.pasteboard, onFirstRead: onPaste)
@@ -122,19 +137,23 @@ enum ScreenshotOutput {
 
     /// 把一张已有的截图保存到文件（缩略图上的「保存」按钮）。
     /// 使用当前设置的格式、质量、1x 选项和保存文件夹；已经保存过则不重复保存。
-    static func save(_ capture: CapturedImage) {
+    /// - Parameter onSaved: 存好后（主线程）告诉调用的一方存成了哪个文件
+    static func save(_ capture: CapturedImage, onSaved: ((URL) -> Void)? = nil) {
         guard capture.fileURL == nil, !capture.isSaving, let image = capture.image else { return }
         capture.isSaving = true
         var options = resolvedOptions(nil, forceSave: true)
         options.copyToClipboard = false
+        options.recordsHistory = false   // 截图完成时已经记过了
         let scale = capture.scale
         let fileName = SaveLocation.fileName(prefix: "截图", fileExtension: options.format.fileExtension, date: capture.date)
         Task.detached(priority: .userInitiated) {
             let result = encodeAndSave(image, scale: scale, fileName: fileName, options: options)
+            if let url = result.fileURL { ScreenshotHistory.noteSaved(url, image: image) }
             await MainActor.run {
                 capture.isSaving = false
                 if let url = result.fileURL {
                     capture.fileURL = url
+                    onSaved?(url)
                     Log.capture.notice("已保存：\(url.lastPathComponent, privacy: .public)")
                 }
                 if let error = result.error {

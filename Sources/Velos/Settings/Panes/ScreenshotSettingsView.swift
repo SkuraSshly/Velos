@@ -36,6 +36,11 @@ struct ScreenshotSettingsView: View {
                           isOn: $prefs.screenshotIncludesCursor)
                 SwitchRow(icon: "arrow.down.right.and.arrow.up.left", tint: .chipLavender, title: "按 1x 分辨率输出",
                           caption: "体积更小", isOn: $prefs.screenshotSaveAs1x)
+                SwitchRow(icon: "macwindow", tint: .chipSky, title: "整个窗口截图时保留圆角",
+                          caption: "单击（或悬停）选中一个窗口截图时，只截窗口本身，四个圆角外透明（和系统按住 ⌥ 截窗口一样）。框选的区域照样是直角。",
+                          isOn: $prefs.windowCorners)
+                SwitchRow(icon: "", title: "再加上窗口阴影",
+                          caption: "四周多出一圈透明的空白和柔和的阴影。", indented: true, isOn: $prefs.windowShadow)
             }
 
             SettingsSection(title: "完成后", footer: footer) {
@@ -44,7 +49,10 @@ struct ScreenshotSettingsView: View {
                 SwitchRow(icon: "square.and.arrow.down", tint: .chipSage, title: "自动保存到文件",
                           caption: "不自动保存时，可在缩略图上点「保存」，或在截图界面按 ⌘S 完成并保存。",
                           isOn: $prefs.screenshotSaveToFile)
-                SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky, title: "在屏幕角落显示缩略图",
+                SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky,
+                          title: prefs.clotheslineEnabled ? "截图后挂到晾衣绳上给你看" : "在屏幕角落显示缩略图",
+                          caption: prefs.clotheslineEnabled
+                              ? "开着晾衣绳时，截图不再出现在角落，而是直接挂到屏幕顶上的绳子上（绳子放下来 2.5 秒）。" : nil,
                           isOn: $prefs.screenshotShowThumbnail)
                 SwitchRow(icon: "", title: "粘贴后自动收起缩略图",
                           caption: "用了剪贴板历史工具（如 Maccy、Paste）时，它会立即读取剪贴板，缩略图会马上收起，可关闭此项。",

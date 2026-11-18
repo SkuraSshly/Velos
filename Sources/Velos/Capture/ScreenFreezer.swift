@@ -75,7 +75,9 @@ enum ScreenFreezer {
     static func ownWindows(in content: SCShareableContent) -> [SCWindow] {
         let pid = ProcessInfo.processInfo.processIdentifier
         let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
-        let capturable = capturableOwnWindows
+        // 晾衣绳也是屏幕上的内容，截得到（它不参与悬停识别窗口，所以不放进 capturableOwnWindows）
+        var capturable = capturableOwnWindows
+        if let line = ClotheslineController.shared.windowNumber { capturable.insert(line) }
         return content.windows.filter {
             $0.owningApplication?.processID == pid && $0.windowLayer != statusLevel && !capturable.contains($0.windowID)
         }

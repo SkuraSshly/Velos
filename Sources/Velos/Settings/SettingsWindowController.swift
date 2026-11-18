@@ -3,12 +3,13 @@ import SwiftUI
 
 /// 设置窗口左侧的栏目
 enum SettingsTab: String, CaseIterable {
-    case general, screenshot, recording, translate, hotkeys
+    case general, screenshot, recording, translate, clothesline, hotkeys
 
     var title: String {
         switch self {
         case .general: "通用"
         case .screenshot: "截图"
+        case .clothesline: "晾衣绳"
         case .recording: "录屏"
         case .translate: "截屏翻译"
         case .hotkeys: "快捷键"
@@ -19,6 +20,7 @@ enum SettingsTab: String, CaseIterable {
         switch self {
         case .general: "gearshape.fill"
         case .screenshot: "camera.viewfinder"
+        case .clothesline: "photo.on.rectangle.angled"
         case .recording: "record.circle"
         case .translate: "character.bubble.fill"
         case .hotkeys: "keyboard.fill"
@@ -30,6 +32,7 @@ enum SettingsTab: String, CaseIterable {
         switch self {
         case .general: .chipCocoa
         case .screenshot: .chipSky
+        case .clothesline: .apricot
         case .recording: .coral
         case .translate: .chipSage
         case .hotkeys: .chipLavender
@@ -78,7 +81,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        window.followActiveSpace()
+        window.allowFullScreen()
         window.backgroundColor = .clear
         window.isOpaque = false
 
@@ -175,6 +178,7 @@ private struct SettingsRootView: View {
         switch selection.tab {
         case .general: GeneralSettingsView()
         case .screenshot: ScreenshotSettingsView()
+        case .clothesline: ClotheslineSettingsView()
         case .recording: RecordingSettingsView()
         case .translate: TranslateSettingsView()
         case .hotkeys: HotkeySettingsView()

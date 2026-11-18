@@ -24,6 +24,17 @@ struct GeneralSettingsView: View {
                           caption: "点程序坞里的图标打开设置；右键可以截图、录屏、截屏翻译。", isOn: $prefs.showDockIcon)
             }
 
+            SettingsSection(title: "更新",
+                            footer: "检查更新只会去 GitHub 问一次最新的版本号，不发送任何关于你或你的截图的信息。不打开自动检查时，Velos 只在你点「检查更新」时联网。") {
+                SettingsRow(icon: "arrow.down.circle", tint: .chipSage, title: "检查更新",
+                            caption: "现在是 \(UpdateChecker.currentVersion)", isFirst: true) {
+                    Button("检查更新") { UpdateChecker.shared.checkNow() }
+                        .buttonStyle(WarmButtonStyle())
+                }
+                SwitchRow(icon: "clock.arrow.2.circlepath", tint: .chipHoney, title: "自动检查更新",
+                          caption: "每天一次；有新版本时提示一次（同一个版本不重复提示）。", isOn: $prefs.autoCheckUpdates)
+            }
+
             SettingsSection(title: "系统权限") {
                 SettingsRow(icon: "rectangle.dashed.badge.record", tint: .chipLavender, title: "屏幕与系统录音",
                             caption: "截图、录屏都需要", isFirst: true) {

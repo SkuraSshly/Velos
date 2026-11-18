@@ -23,6 +23,8 @@ final class ClipboardWriter: NSObject, NSPasteboardItemDataProvider {
         let writer = ClipboardWriter(png: png, onFirstRead: onFirstRead)
         let item = NSPasteboardItem()
         item.setDataProvider(writer, forTypes: [.png, .tiff])
+        // 标记成 Velos 自己放的：「接收剪贴板图片」不会把它再挂一遍
+        item.setString("1", forType: ClipboardWatcher.ownType)
         pasteboard.clearContents()
         pasteboard.writeObjects([item])
         current = writer

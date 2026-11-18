@@ -13,6 +13,8 @@ final class HotkeyManager {
         case screenshot = 1
         case recording = 2
         case translate = 3
+        /// 放下 / 收起晾衣绳
+        case clothesline = 6
     }
 
     /// 快捷键「真正按下」时回调（按住不放产生的重复事件已被过滤）
@@ -30,7 +32,7 @@ final class HotkeyManager {
     private var held: Set<Action> = []
     private var handlerRef: EventHandlerRef?
     /// 临时快捷键（例如长截图期间的 Esc）：编号从 100 开始，和三个固定动作区分开
-    private var temporary: [UInt32: (ref: EventHotKeyRef, handler: () -> Void)] = [:]
+    private var temporary: [UInt32: (ref: EventHotKeyRef, handler: () -> Void, onRelease: (() -> Void)?)] = [:]
     private var nextTemporaryID: UInt32 = 100
 
     /// 'VELO'，用来区分是不是本程序注册的快捷键
@@ -93,7 +95,9 @@ final class HotkeyManager {
 
     /// 注册一个临时快捷键（例如长截图期间按 Esc 取消）。注册期间这个按键只交给 Velos，不会传给当前 App。
     /// - Returns: 编号，用 removeTemporary 注销；注册失败（被别的程序占用）时返回 nil
-    func addTemporary(keyCode: Int, modifiers: UInt32 = 0, handler: @escaping () -> Void) -> UInt32? {
+    /// - Parameter onRelease: 松开按键时（例如按住空格预览、松开就关）
+    func addTemporary(keyCode: Int, modifiers: UInt32 = 0, onRelease: (() -> Void)? = nil,
+                      handler: @escaping () -> Void) -> UInt32? {
         installHandlerIfNeeded()
         let number = nextTemporaryID
         nextTemporaryID += 1
@@ -102,7 +106,7 @@ final class HotkeyManager {
         guard RegisterEventHotKey(UInt32(keyCode), modifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref else {
             return nil
         }
-        temporary[number] = (ref, handler)
+        temporary[number] = (ref, handler, onRelease)
         return number
     }
 
@@ -170,7 +174,7 @@ final class HotkeyManager {
 
     private func handle(id: UInt32, isPress: Bool) {
         if let entry = temporary[id] {
-            if isPress { entry.handler() }
+            if isPress { entry.handler() } else { entry.onRelease?() }
             return
         }
         guard let action = Action(rawValue: id) else { return }
@@ -180,6 +184,36 @@ final class HotkeyManager {
             onPress?(action)
         } else {
             held.remove(action)
+        }
+    }
+}
+
+extension HotkeyManager.Action {
+    var title: String {
+        switch self {
+        case .screenshot: "截图"
+        case .recording: "录屏"
+        case .translate: "截屏翻译"
+        case .clothesline: "晾衣绳"
+        }
+    }
+
+    var defaultHotkey: Hotkey {
+        switch self {
+        case .screenshot: .defaultScreenshot
+        case .recording: .defaultRecording
+        case .translate: .defaultTranslate
+        case .clothesline: .defaultClothesline
+        }
+    }
+
+    /// 这个动作的快捷键存在设置的哪一项
+    @MainActor var preferenceKeyPath: ReferenceWritableKeyPath<Preferences, Hotkey> {
+        switch self {
+        case .screenshot: \.screenshotHotkey
+        case .recording: \.recordingHotkey
+        case .translate: \.translateHotkey
+        case .clothesline: \.clotheslineHotkey
         }
     }
 }

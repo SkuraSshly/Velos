@@ -208,7 +208,8 @@ enum DebugFeatureTest {
               custom.spacedDisplayString)
         let titles = StatusBarController.debugCurrent?.debugMenuTitles ?? []
         let shown = titles.filter { !$0.isEmpty }
-        check("菜单只有截图、录屏、截屏翻译、设置、退出", shown == ["截图", "录屏", "截屏翻译", "设置…", "退出 Velos"], "\(shown)")
+        check("菜单只有截图、录屏、截屏翻译、晾衣绳、设置、退出",
+              shown == ["截图", "录屏", "截屏翻译", "晾衣绳", "设置…", "退出 Velos"], "\(shown)")
         // 冲突时保留原来的快捷键
         _ = coordinator.setHotkey(hk(kVK_ANSI_V, cmdKey), for: .screenshot)
         check("冲突时保留原来的快捷键", Preferences.shared.screenshotHotkey == custom)

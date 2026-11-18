@@ -16,20 +16,16 @@ final class CaptureCoordinator {
     var translateHotkey: Hotkey { Preferences.shared.translateHotkey }
 
     func hotkey(for action: HotkeyManager.Action) -> Hotkey {
-        switch action {
-        case .screenshot: screenshotHotkey
-        case .recording: recordingHotkey
-        case .translate: translateHotkey
-        }
+        Preferences.shared[keyPath: action.preferenceKeyPath]
     }
 
     func start() {
         HotkeyManager.shared.onPress = { [weak self] action in
             self?.handleHotkey(action)
         }
-        HotkeyManager.shared.bind(.screenshot, to: screenshotHotkey)
-        HotkeyManager.shared.bind(.recording, to: recordingHotkey)
-        HotkeyManager.shared.bind(.translate, to: translateHotkey)
+        for action in HotkeyManager.Action.allCases {
+            HotkeyManager.shared.bind(action, to: hotkey(for: action))
+        }
     }
 
     /// 这个组合键设为某个动作的快捷键有没有问题（和其他动作重复、常用编辑快捷键、系统快捷键、被其他程序占用）；nil 表示可以用
@@ -56,17 +52,13 @@ final class CaptureCoordinator {
     }
 
     private func save(_ hotkey: Hotkey, for action: HotkeyManager.Action) {
-        switch action {
-        case .screenshot: Preferences.shared.screenshotHotkey = hotkey
-        case .recording: Preferences.shared.recordingHotkey = hotkey
-        case .translate: Preferences.shared.translateHotkey = hotkey
-        }
+        Preferences.shared[keyPath: action.preferenceKeyPath] = hotkey
         Log.hotkey.notice("\(action.title, privacy: .public)快捷键改为 \(hotkey.displayString, privacy: .public)")
     }
 
     /// 设置进程改了快捷键：按设置里的重新注册（没变的不动）
     func rebindHotkeysFromPreferences() {
-        for action in [HotkeyManager.Action.screenshot, .recording, .translate] {
+        for action in HotkeyManager.Action.allCases {
             let wanted = hotkey(for: action)
             guard HotkeyManager.shared.hotkey(for: action) != wanted else { continue }
             if !HotkeyManager.shared.bind(action, to: wanted) {
@@ -76,6 +68,8 @@ final class CaptureCoordinator {
     }
 
     func handleHotkey(_ action: HotkeyManager.Action) {
+        // 晾衣绳和截图互不影响，什么时候都能放下 / 收起
+        if action == .clothesline { return ClotheslineController.shared.toggle() }
         // 长截图进行中：其他截图、录屏都等它结束（用控制条上的「完成」或「取消」）。
         // 例外：边录屏边长截图时，录屏快捷键照样能停止录屏（不开始新的录屏选区）
         guard longCaptureSession == nil else {
@@ -83,12 +77,14 @@ final class CaptureCoordinator {
             return
         }
         switch action {
+        case .clothesline:
+            break
         case .screenshot, .translate:
-            let purpose: ScreenshotSession.Purpose = action == .screenshot ? .screenshot : .translate
+            let purpose = ScreenshotSession.Purpose(action)
             if let session = screenshotSession {
                 // 界面还没来得及出现时（正在冻屏），全局快捷键仍然有效，由这里转给会话切换模式；
                 // 截图界面里按截屏翻译的快捷键（或反过来）不做任何事
-                if session.purpose == purpose { session.toggleMode() }
+                if session.hotkeyAction == action { session.toggleMode() }
             } else if recordingSession == nil {
                 // 录屏选区进行中不截图；录制过程中可以截图、截屏翻译
                 beginScreenshot(purpose: purpose)
@@ -120,10 +116,11 @@ final class CaptureCoordinator {
         guard screenshotSession == nil, recordingSession == nil else { return }
         guard PermissionManager.shared.ensureScreenRecording() else { return }
 
-        let session = ScreenshotSession(hotkey: purpose == .screenshot ? screenshotHotkey : translateHotkey, purpose: purpose)
+        let action = purpose.hotkeyAction
+        let session = ScreenshotSession(hotkey: hotkey(for: action), purpose: purpose)
         session.onTranslate = { crop in ScreenTranslateController.shared.recognize(crop) }
         session.onLongCapture = { [weak self] region, screen in self?.beginLongCapture(region: region, screen: screen) }
-        if purpose == .translate { ScreenTranslateController.shared.warmUp() }
+        if purpose != .screenshot { ScreenTranslateController.shared.warmUp() }
         session.onFinish = { [weak self] in
             self?.screenshotSession = nil
         }

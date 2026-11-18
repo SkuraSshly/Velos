@@ -56,13 +56,17 @@ final class RegionSelector {
 
     /// 参与选择的屏幕（只有已冻结 / 已显示遮罩的屏幕）
     var screens: [CGDirectDisplayID: ScreenInfo] = [:]
-    /// 从前到后的窗口矩形
-    var windows: [CGRect] = []
+    /// 从前到后的窗口
+    var windows: [DetectedWindow] = []
 
     private(set) var selection: CGRect?
     private(set) var selectionDisplayID: CGDirectDisplayID?
     private(set) var hoveredWindow: CGRect?
     private(set) var hoveredDisplayID: CGDirectDisplayID?
+    /// 悬停的窗口整个都在屏幕里时，就是这个窗口（露出屏幕外的窗口只能截露出来的部分，不算整个窗口）
+    private var hoveredWholeWindow: DetectedWindow?
+    /// 单击选中的整个窗口（之后移动、调整过选区就不再算）
+    private var selectedWholeWindow: DetectedWindow?
     private var interaction: Interaction = .idle
 
     /// 按下后移动超过这个距离才算拖拽，否则算单击
@@ -96,6 +100,14 @@ final class RegionSelector {
         if let selection, let selectionDisplayID { return (selection, selectionDisplayID) }
         if let hoveredWindow, let hoveredDisplayID { return (hoveredWindow, hoveredDisplayID) }
         return nil
+    }
+
+    /// 按 Enter 时截的正好是一整个 App 窗口（悬停高亮的，或单击选中后没有动过的）：可以带上窗口的圆角和阴影
+    var targetWindow: DetectedWindow? {
+        guard case .idle = interaction else { return nil }
+        let window = selection == nil ? hoveredWholeWindow : selectedWholeWindow
+        guard let window, window.isAppWindow, let rect = target?.rect, rect.isClose(to: window.frame) else { return nil }
+        return window
     }
 
     /// 该位置应显示的鼠标指针
@@ -154,6 +166,7 @@ final class RegionSelector {
             // 开始拖拽新选区：旧选区和窗口高亮都清掉
             interaction = .creating(anchor: anchor)
             selectionDisplayID = id
+            selectedWholeWindow = nil
             clearHover()
             updateCreating(from: anchor, to: point)
 
@@ -179,6 +192,7 @@ final class RegionSelector {
             if let hoveredWindow, hoveredDisplayID == id, hoveredWindow.contains(point) {
                 selection = hoveredWindow
                 selectionDisplayID = id
+                selectedWholeWindow = hoveredWholeWindow
                 clearHover()
             }
         case .creating, .resizing:
@@ -203,6 +217,7 @@ final class RegionSelector {
     func clearSelection(at point: CGPoint) {
         selection = nil
         selectionDisplayID = nil
+        selectedWholeWindow = nil
         interaction = .idle
         updateHover(at: point)
     }
@@ -240,22 +255,24 @@ final class RegionSelector {
     /// 悬停识别：找到鼠标下最靠前的窗口，裁剪到所在屏幕
     private func updateHover(at point: CGPoint) {
         guard let id = displayID(at: point), let screen = screens[id],
-              let window = windows.first(where: { $0.contains(point) }) else {
+              let window = windows.first(where: { $0.frame.contains(point) }) else {
             clearHover()
             return
         }
-        let visible = window.intersection(screen.frame).alignedToPixels(scale: screen.scale)
+        let visible = window.frame.intersection(screen.frame).alignedToPixels(scale: screen.scale)
         guard visible.width >= minimumSize, visible.height >= minimumSize else {
             clearHover()
             return
         }
         hoveredWindow = visible
         hoveredDisplayID = id
+        hoveredWholeWindow = visible.isClose(to: window.frame) ? window : nil
     }
 
     private func clearHover() {
         hoveredWindow = nil
         hoveredDisplayID = nil
+        hoveredWholeWindow = nil
     }
 
     /// 命中哪个控制点：先看 8 个控制点，再看四条边
@@ -305,5 +322,12 @@ final class RegionSelector {
 
     private func snap(_ point: CGPoint, scale: CGFloat) -> CGPoint {
         CGPoint(x: (point.x * scale).rounded() / scale, y: (point.y * scale).rounded() / scale)
+    }
+}
+
+private extension CGRect {
+    /// 四条边都相差不到 1 点（对齐像素前后的同一个矩形）
+    func isClose(to other: CGRect) -> Bool {
+        abs(minX - other.minX) < 1 && abs(minY - other.minY) < 1 && abs(maxX - other.maxX) < 1 && abs(maxY - other.maxY) < 1
     }
 }

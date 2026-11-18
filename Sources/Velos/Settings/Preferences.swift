@@ -69,14 +69,17 @@ final class Preferences: ObservableObject {
     static let shared = Preferences()
 
     private enum Key: String {
+        case autoCheckUpdates
         case showMenuBarIcon, showDockIcon, screenshotDirectoryPath, recordingDirectoryPath, hasCompletedOnboarding
         case imageFormat, jpegQuality, screenshotIncludesCursor, screenshotSaveAs1x, screenshotCornerRadius
         case screenshotCopyToClipboard, screenshotSaveToFile, screenshotShowThumbnail, hideThumbnailAfterPaste
         case recordingResolution, recordingFrameRate, videoCodec, videoQuality
         case recordSystemAudio, recordMicrophone, microphoneDeviceID, recordingShowsCursor
-        case recordingCountdown, highlightClicks, recordingShowThumbnail
+        case recordingCountdown, highlightClicks, recordingShowThumbnail, recordingDeleteForever
         case gifFrameRate, gifMaxWidth
         case screenshotHotkey, recordingHotkey, translateHotkey
+        case windowShadow, windowCorners
+        case clotheslineHotkey, clotheslineEnabled, clotheslineHover, clotheslineSize, clotheslineKeep, clotheslineClipboard, clotheslineModifier
         case ocrSmartLayout, ocrDetectsQRCodes, ocrPreferredLanguage, translateWindowPinnedByDefault
         case enabledEngines, defaultEngine, llmPrompt
         case defaultTargetLanguage, translateAutoCopy, speechRate
@@ -84,6 +87,8 @@ final class Preferences: ObservableObject {
 
     // MARK: 通用
     @Published var showMenuBarIcon: Bool { didSet { Self.save(showMenuBarIcon, .showMenuBarIcon) } }
+    /// 自动检查更新（默认关：Velos 默认不联网；打开后每天去 GitHub 问一次最新版本号）
+    @Published var autoCheckUpdates: Bool { didSet { Self.save(autoCheckUpdates, .autoCheckUpdates) } }
     /// 在程序坞显示图标（默认不显示：Velos 是菜单栏工具）
     @Published var showDockIcon: Bool { didSet { Self.save(showDockIcon, .showDockIcon) } }
     /// 截图的保存文件夹（绝对路径），默认 ~/Pictures/ScreenShots
@@ -104,6 +109,25 @@ final class Preferences: ObservableObject {
     @Published var screenshotShowThumbnail: Bool { didSet { Self.save(screenshotShowThumbnail, .screenshotShowThumbnail) } }
     /// 截图被粘贴后自动收起缩略图
     @Published var hideThumbnailAfterPaste: Bool { didSet { Self.save(hideThumbnailAfterPaste, .hideThumbnailAfterPaste) } }
+    /// 单击（或悬停）选中整个窗口截图时，保留窗口的圆角和阴影（和系统截图一样，四周透明）
+    @Published var windowShadow: Bool { didSet { Self.save(windowShadow, .windowShadow) } }
+    /// 单击（或悬停）选中整个窗口截图时，按窗口的圆角切掉四个角（角外透明）；框选的区域照样是直角
+    @Published var windowCorners: Bool { didSet { Self.save(windowCorners, .windowCorners) } }
+    /// 保留最近的截图（晾衣绳上挂的东西）：就是「使用晾衣绳」，关掉晾衣绳时清空
+    var historyEnabled: Bool { clotheslineEnabled }
+    /// 晾衣绳：最近的截图挂在屏幕顶上（数据就是「最近截图」）
+    @Published var clotheslineEnabled: Bool { didSet { Self.save(clotheslineEnabled, .clotheslineEnabled) } }
+    /// 按住 ⌥ 把鼠标移到屏幕最上面时放下晾衣绳
+    @Published var clotheslineHover: Bool { didSet { Self.save(clotheslineHover, .clotheslineHover) } }
+    /// 绳上照片的大小（ClotheslineSize 的 rawValue：small / medium / large）
+    @Published var clotheslineSize: String { didSet { Self.save(clotheslineSize, .clotheslineSize) } }
+    /// 绳上保留几张：0 是屏幕放得下几张就几张，否则 25 / 50 / 100（多出来的滚动着看）
+    @Published var clotheslineKeep: Int { didSet { Self.save(clotheslineKeep, .clotheslineKeep) } }
+    /// 按住哪个键把鼠标移到最上面时放下晾衣绳（ClotheslineModifier 的 rawValue，默认 option）
+    @Published var clotheslineModifier: String { didSet { Self.save(clotheslineModifier, .clotheslineModifier) } }
+    /// 接收剪贴板图片：别的软件里复制的图片也挂上绳（默认关）
+    @Published var clotheslineClipboard: Bool { didSet { Self.save(clotheslineClipboard, .clotheslineClipboard) } }
+
 
     // MARK: 录屏
     @Published var recordingResolution: RecordingResolution { didSet { Self.save(recordingResolution.rawValue, .recordingResolution) } }
@@ -120,6 +144,8 @@ final class Preferences: ObservableObject {
     @Published var highlightClicks: Bool { didSet { Self.save(highlightClicks, .highlightClicks) } }
     /// 录制完成后在屏幕角落显示缩略图
     @Published var recordingShowThumbnail: Bool { didSet { Self.save(recordingShowThumbnail, .recordingShowThumbnail) } }
+    /// 删除录屏、GIF 时永久删除（默认关：放进废纸篓，还能放回来）
+    @Published var recordingDeleteForever: Bool { didSet { Self.save(recordingDeleteForever, .recordingDeleteForever) } }
     @Published var gifFrameRate: GIFFrameRate { didSet { Self.save(gifFrameRate.rawValue, .gifFrameRate) } }
     @Published var gifMaxWidth: GIFMaxWidth { didSet { Self.save(gifMaxWidth.rawValue, .gifMaxWidth) } }
 
@@ -151,6 +177,7 @@ final class Preferences: ObservableObject {
     @Published var screenshotHotkey: Hotkey { didSet { Self.save(screenshotHotkey.stored, .screenshotHotkey) } }
     @Published var recordingHotkey: Hotkey { didSet { Self.save(recordingHotkey.stored, .recordingHotkey) } }
     @Published var translateHotkey: Hotkey { didSet { Self.save(translateHotkey.stored, .translateHotkey) } }
+    @Published var clotheslineHotkey: Hotkey { didSet { Self.save(clotheslineHotkey.stored, .clotheslineHotkey) } }
 
     /// 是否已经走完首次运行的权限引导（界面不需要监听它，所以不用 @Published）
     var hasCompletedOnboarding: Bool {
@@ -161,6 +188,7 @@ final class Preferences: ObservableObject {
     private init() {
         showMenuBarIcon = Self.load(.showMenuBarIcon, true)
         showDockIcon = Self.load(.showDockIcon, false)
+        autoCheckUpdates = Self.load(.autoCheckUpdates, false)
         screenshotDirectoryPath = Self.load(.screenshotDirectoryPath, SaveLocation.defaultDirectory(for: .screenshot).path)
         recordingDirectoryPath = Self.load(.recordingDirectoryPath, SaveLocation.defaultDirectory(for: .recording).path)
 
@@ -174,6 +202,14 @@ final class Preferences: ObservableObject {
         screenshotSaveToFile = Self.load(.screenshotSaveToFile, false)
         screenshotShowThumbnail = Self.load(.screenshotShowThumbnail, true)
         hideThumbnailAfterPaste = Self.load(.hideThumbnailAfterPaste, true)
+        windowShadow = Self.load(.windowShadow, false)
+        windowCorners = Self.load(.windowCorners, true)
+        clotheslineEnabled = Self.load(.clotheslineEnabled, true)
+        clotheslineHover = Self.load(.clotheslineHover, true)
+        clotheslineSize = Self.load(.clotheslineSize, ClotheslineSize.medium.rawValue)
+        clotheslineKeep = Self.load(.clotheslineKeep, 0)
+        clotheslineClipboard = Self.load(.clotheslineClipboard, false)
+        clotheslineModifier = Self.load(.clotheslineModifier, "option")
 
         recordingResolution = Self.loadEnum(.recordingResolution, RecordingResolution.native)
         recordingFrameRate = Self.loadEnum(.recordingFrameRate, RecordingFrameRate.fps60)
@@ -186,6 +222,7 @@ final class Preferences: ObservableObject {
         recordingCountdown = Self.load(.recordingCountdown, false)
         highlightClicks = Self.load(.highlightClicks, false)
         recordingShowThumbnail = Self.load(.recordingShowThumbnail, true)
+        recordingDeleteForever = Self.load(.recordingDeleteForever, false)
         gifFrameRate = Self.loadEnum(.gifFrameRate, GIFFrameRate.fps15)
         gifMaxWidth = Self.loadEnum(.gifMaxWidth, GIFMaxWidth.w960)
 
@@ -204,6 +241,7 @@ final class Preferences: ObservableObject {
         screenshotHotkey = Hotkey(stored: Self.load(.screenshotHotkey, [Int]())) ?? .defaultScreenshot
         recordingHotkey = Hotkey(stored: Self.load(.recordingHotkey, [Int]())) ?? .defaultRecording
         translateHotkey = Hotkey(stored: Self.load(.translateHotkey, [Int]())) ?? .defaultTranslate
+        clotheslineHotkey = Hotkey(stored: Self.load(.clotheslineHotkey, [Int]())) ?? .defaultClothesline
         // 默认快捷键从 ⌥1 / ⌥2 / ⌥3 改成 ⌥A / ⌥S / ⌥D：还在用旧默认值的一次性换成新的（只做一次，之后自己改回 ⌥1 也会保留）
         if !AppIdentity.defaults.bool(forKey: "hotkeysMigratedToASD") {
             if screenshotHotkey == Hotkey.legacyDefaults[0] { screenshotHotkey = .defaultScreenshot }
@@ -222,17 +260,19 @@ final class Preferences: ObservableObject {
         func sync<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<Preferences, T>) {
             if self[keyPath: keyPath] != stored[keyPath: keyPath] { self[keyPath: keyPath] = stored[keyPath: keyPath] }
         }
-        sync(\.showMenuBarIcon); sync(\.showDockIcon); sync(\.screenshotDirectoryPath); sync(\.recordingDirectoryPath)
+        sync(\.showMenuBarIcon); sync(\.showDockIcon); sync(\.autoCheckUpdates); sync(\.screenshotDirectoryPath); sync(\.recordingDirectoryPath)
         sync(\.imageFormat); sync(\.jpegQuality); sync(\.screenshotIncludesCursor); sync(\.screenshotSaveAs1x)
         sync(\.screenshotCornerRadius); sync(\.screenshotCopyToClipboard); sync(\.screenshotSaveToFile)
-        sync(\.screenshotShowThumbnail); sync(\.hideThumbnailAfterPaste)
+        sync(\.screenshotShowThumbnail); sync(\.hideThumbnailAfterPaste); sync(\.windowShadow); sync(\.windowCorners)
+        sync(\.clotheslineEnabled); sync(\.clotheslineHover); sync(\.clotheslineSize); sync(\.clotheslineKeep)
+        sync(\.clotheslineClipboard); sync(\.clotheslineModifier)
         sync(\.recordingResolution); sync(\.recordingFrameRate); sync(\.videoCodec); sync(\.videoQuality)
         sync(\.recordSystemAudio); sync(\.recordMicrophone); sync(\.microphoneDeviceID); sync(\.recordingShowsCursor)
-        sync(\.recordingCountdown); sync(\.highlightClicks); sync(\.recordingShowThumbnail); sync(\.gifFrameRate); sync(\.gifMaxWidth)
+        sync(\.recordingCountdown); sync(\.highlightClicks); sync(\.recordingShowThumbnail); sync(\.recordingDeleteForever); sync(\.gifFrameRate); sync(\.gifMaxWidth)
         sync(\.ocrSmartLayout); sync(\.ocrDetectsQRCodes); sync(\.enabledEngines); sync(\.defaultEngine); sync(\.llmPrompt)
         sync(\.translateWindowPinnedByDefault); sync(\.ocrPreferredLanguage); sync(\.defaultTargetLanguage)
         sync(\.translateAutoCopy); sync(\.speechRate)
-        sync(\.screenshotHotkey); sync(\.recordingHotkey); sync(\.translateHotkey)
+        for action in HotkeyManager.Action.allCases { sync(action.preferenceKeyPath) }
     }
 
     // MARK: 读写辅助

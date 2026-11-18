@@ -223,35 +223,12 @@ final class EditorCanvasView: NSView {
     }
 }
 
-/// 编辑窗口的「桌面」：图片画布放在中间，四周留一圈暖色边距，图片带柔和投影、像浮在上面，边界一目了然。
+/// 编辑窗口的「桌面」：图片画布放在中间，四周留一圈和窗口同色的边距（整个界面一个颜色，不画投影）。
 /// 边距里点不到画布，所以标注只能从图片里开始画。
 final class EditorDesk: NSView {
-    /// 两层投影：大而柔和的环境投影 + 贴近图片的接触投影，图片看起来浮在编辑界面上面
-    private let ambientShadow = CALayer()
-    private let contactShadow = CALayer()
-
     init(canvas: NSView, image: CGImage, margin: CGFloat) {
         super.init(frame: CGRect(x: 0, y: 0, width: canvas.frame.width + margin * 2, height: canvas.frame.height + margin * 2))
-        wantsLayer = true
-        layer?.masksToBounds = false
         canvas.setFrameOrigin(CGPoint(x: margin, y: margin))
-        // 投影单独放在图片下面（图片自己要裁剪掉超出边界的标注，不能带投影）。
-        // 投影按图片本身的形状算：截的窗口四角是透明的圆角，投影也是同样的圆角；不垫方形的底板——
-        // 垫了的话，透明的圆角处会露出方块的直角和它的投影，四个角看着很别扭
-        let shadowColor = NSColor(srgbRed: 0.22, green: 0.13, blue: 0.07, alpha: 1).cgColor
-        let corner = Self.transparentCornerRadius(of: image) * canvas.frame.width / CGFloat(max(1, image.width))
-        let shape = CGPath(roundedRect: CGRect(origin: .zero, size: canvas.frame.size), cornerWidth: corner, cornerHeight: corner,
-                           transform: nil)
-        for (shadow, radius, opacity, offset) in [(ambientShadow, CGFloat(22), Float(0.30), CGFloat(-9)),
-                                                  (contactShadow, CGFloat(3), Float(0.22), CGFloat(-1))] {
-            shadow.frame = canvas.frame
-            shadow.shadowPath = shape
-            shadow.shadowColor = shadowColor
-            shadow.shadowOpacity = opacity
-            shadow.shadowRadius = radius
-            shadow.shadowOffset = CGSize(width: 0, height: offset)
-            layer?.addSublayer(shadow)
-        }
         addSubview(canvas)
         canvas.layer?.masksToBounds = true
     }

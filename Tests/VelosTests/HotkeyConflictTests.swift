@@ -5,9 +5,8 @@ import Testing
 /// 快捷键冲突检查：各个动作现在的快捷键、能不能注册都由调用方提供，这里用固定的值测
 @MainActor
 @Suite struct HotkeyConflictTests {
-    static let assigned: [HotkeyManager.Action: Hotkey] = [
-        .screenshot: .defaultScreenshot, .recording: .defaultRecording, .translate: .defaultTranslate,
-    ]
+    /// 每个动作都用默认快捷键
+    static let assigned = Dictionary(uniqueKeysWithValues: HotkeyManager.Action.allCases.map { ($0, $0.defaultHotkey) })
 
     func problem(_ hotkey: Hotkey, for action: HotkeyManager.Action = .screenshot, canRegister: Bool = true) -> String? {
         HotkeyConflicts.problem(with: hotkey, for: action, assigned: { Self.assigned[$0]! }, canRegister: { _ in canRegister })
@@ -23,6 +22,12 @@ import Testing
     @Test func 和其他动作重复时说明是哪个动作() {
         let text = problem(.defaultTranslate, for: .screenshot) ?? ""
         #expect(text.contains(HotkeyManager.Action.translate.title))
+    }
+
+    @Test func 新加的快捷键和其他动作不重复() {
+        #expect(problem(.defaultClothesline, for: .clothesline) == nil)
+        #expect(Set(HotkeyManager.Action.allCases.map(\.defaultHotkey)).count == HotkeyManager.Action.allCases.count)
+        #expect(problem(.defaultScreenshot, for: .clothesline)?.contains("截图") == true)
     }
 
     @Test func 设回自己原来的组合键不算冲突() {

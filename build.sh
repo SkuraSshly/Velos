@@ -37,6 +37,7 @@ if [[ "$CONFIG" == "debug" ]]; then
     || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string Velos 测试版" "$APP/Contents/Info.plist"
 fi
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"   # 图标（由 scripts/make-icon.swift 生成）
+cp THIRD_PARTY_NOTICES.md "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"   # 移植代码的许可证声明（MIT 要求随软件附带）
 # 截屏翻译的文字识别服务（XPC 服务：按需启动，空闲 30 秒后自动退出）
 SERVICE="$APP/Contents/XPCServices/VelosOCR.xpc"
 SERVICE_PLIST="Resources/OCRService-Info.plist"
@@ -55,7 +56,8 @@ cp "$APP/Contents/Info.plist" "$SETTINGS_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $SETTINGS_ID" \
   -c "Set :CFBundleExecutable VelosSettings" \
   -c "Set :CFBundleName VelosSettings" \
-  -c "Set :CFBundleDisplayName VelosSettings" "$SETTINGS_APP/Contents/Info.plist"
+  -c "Set :CFBundleDisplayName VelosSettings" \
+  -c "Delete :CFBundleDocumentTypes" "$SETTINGS_APP/Contents/Info.plist"   # 「打开方式」里只出现 Velos，不出现 VelosSettings
 # VelosSettings 只带小图标（活动监视器里显示 16–32 像素就够，省下 1.7 MB）；
 # 大图标（权限引导里的）启动时从 Velos.app 读，见 SettingsProcessController
 ICON_TMP="$(mktemp -d)"

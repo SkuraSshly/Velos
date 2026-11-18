@@ -49,9 +49,19 @@ struct RecordingSettingsView: View {
                           caption: "点击处出现杏色圆圈（右键为珊瑚色），会录进视频。", isOn: $prefs.highlightClicks)
                 SwitchRow(icon: "timer", tint: .coral, title: "开始前 3 秒倒计时",
                           caption: "倒计时期间按 Esc 取消，按 Enter 立即开始。", isOn: $prefs.recordingCountdown)
-                SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky, title: "完成后在屏幕角落显示缩略图",
-                          caption: "缩略图上可以预览、拷贝文件、导出 GIF、移到废纸篓。",
+                SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky,
+                          title: prefs.clotheslineEnabled ? "录完挂到晾衣绳上给你看" : "完成后在屏幕角落显示缩略图",
+                          caption: prefs.clotheslineEnabled
+                              ? "开着晾衣绳时录屏不再出现在角落，而是挂到绳上（关掉这项也会挂，只是绳子不放下来）。卡片上可以复制、导出 GIF，按空格预览，右键移到废纸篓。"
+                              : "缩略图上可以预览、拷贝文件、导出 GIF、移到废纸篓。",
                           isOn: $prefs.recordingShowThumbnail)
+                SettingsRow(icon: "trash", tint: .chipRose, title: "删除录屏时",
+                            caption: prefs.recordingDeleteForever
+                                ? "⚠️ 永久删除：文件直接删掉，不进废纸篓，没法找回。"
+                                : "放入废纸篓：删错了可以从废纸篓里放回来。") {
+                    WarmSegmented(options: [(false, "放入废纸篓"), (true, "永久删除")],
+                                  selection: $prefs.recordingDeleteForever, segmentWidth: 84)
+                }
             }
 
             SettingsSection(title: "GIF",

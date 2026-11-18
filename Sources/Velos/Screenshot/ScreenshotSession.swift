@@ -17,7 +17,24 @@ import ScreenCaptureKit
 /// 全屏模式按 Enter 识别整块屏幕；结果交给 onTranslate。
 @MainActor
 final class ScreenshotSession: OverlayEventHandler {
-    enum Purpose { case screenshot, translate }
+    enum Purpose {
+        case screenshot, translate
+
+        init(_ action: HotkeyManager.Action) {
+            switch action {
+            case .translate: self = .translate
+            case .screenshot, .recording, .clothesline: self = .screenshot
+            }
+        }
+
+        /// 这个用途自己的快捷键
+        var hotkeyAction: HotkeyManager.Action {
+            switch self {
+            case .screenshot: .screenshot
+            case .translate: .translate
+            }
+        }
+    }
 
     var onFinish: (() -> Void)?
     /// 截屏翻译：选好区域后回调（这时界面已经关闭）
@@ -26,8 +43,10 @@ final class ScreenshotSession: OverlayEventHandler {
     var onLongCapture: ((CGRect, NSScreen) -> Void)?
 
     let purpose: Purpose
-    private var isTranslating: Bool { purpose == .translate }
-    private var hotkeyAction: HotkeyManager.Action { isTranslating ? .translate : .screenshot }
+    /// 截屏翻译：框选文字的界面（没有标注工具，松开鼠标就识别）
+    private var isTextCapture: Bool { purpose != .screenshot }
+    /// 打开这个界面的快捷键（界面里再按一次切换区域 / 全屏）
+    let hotkeyAction: HotkeyManager.Action
     private let hotkey: Hotkey
     private(set) var mode: CaptureMode = .region
 
@@ -55,8 +74,10 @@ final class ScreenshotSession: OverlayEventHandler {
     }()
     /// 截图的圆角（点）：只对拖出来、单击选中的选区生效（全屏、只悬停识别的窗口不切圆角）
     private var cornerRadius: CGFloat {
-        mode == .region && selector.selection != nil && !isTranslating ? cornerBar.radius : 0
+        mode == .region && selector.selection != nil && !isTextCapture && !usesWindowShape ? cornerBar.radius : 0
     }
+    /// 整个窗口带阴影截图时用窗口自己的圆角，圆角拉条不显示
+    private var usesWindowShape: Bool { shapedWindow != nil }
     private var annotator: AnnotationController?
     private var annotatorDisplayID: CGDirectDisplayID?
 
@@ -72,6 +93,7 @@ final class ScreenshotSession: OverlayEventHandler {
 
     init(hotkey: Hotkey, purpose: Purpose = .screenshot) {
         self.hotkey = hotkey
+        self.hotkeyAction = purpose.hotkeyAction
         self.purpose = purpose
         toolbar.onSelectTool = { [weak self] tool in self?.selectTool(tool) }
         toolbar.onSelectColor = { [weak self] color in self?.updateStyle { $0.color = color } }
@@ -109,7 +131,8 @@ final class ScreenshotSession: OverlayEventHandler {
         #if DEBUG
         // 界面自测：用合成图代替真实屏幕，不读取用户屏幕内容
         if let synthetic = DebugUITest.syntheticScreen(for: mouseScreen) {
-            selector.windows = synthetic.windows
+            guard !isFinished else { return }
+            selector.windows = synthetic.windows.map { DetectedWindow(frame: $0, isAppWindow: true) }
             present(synthetic.frozen, isPrimary: true)
             return
         }
@@ -159,7 +182,7 @@ final class ScreenshotSession: OverlayEventHandler {
         let window = OverlayWindow(screen: frozen.screen)
         let view = OverlayView(frame: NSRect(origin: .zero, size: frozen.screen.frame.size),
                                image: frozen.image, scale: frozen.scale,
-                               accent: isTranslating ? OverlayAccent.translate : OverlayAccent.screenshot)
+                               accent: isTextCapture ? OverlayAccent.translate : OverlayAccent.screenshot)
         view.handler = self
         window.handler = self
         window.contentView = view
@@ -186,7 +209,7 @@ final class ScreenshotSession: OverlayEventHandler {
 
     private func cancel() {
         guard !isFinished else { return }
-        Log.capture.notice("\(self.isTranslating ? "截屏翻译" : "截图", privacy: .public)已取消")
+        Log.capture.notice("\(self.purposeTitle, privacy: .public)已取消")
         finish()
     }
 
@@ -270,18 +293,72 @@ final class ScreenshotSession: OverlayEventHandler {
         overlayCursor(at: mousePoint).set()
     }
 
+    private var purposeTitle: String {
+        switch purpose {
+        case .screenshot: "截图"
+        case .translate: "截屏翻译"
+        }
+    }
+
     /// 完成截图。save 为 true 时无论设置如何都保存文件（⌘S）
     private func complete(save: Bool = false) {
+        let window = shapedWindow
         guard let result = makeResult() else { return }
         finish()
-        if isTranslating {
+        switch purpose {
+        case .translate:
             Log.capture.notice("截屏翻译：识别 \(result.image.width)×\(result.image.height) 像素")
             onTranslate?(result)
             return
+        case .screenshot:
+            break
         }
         Log.capture.notice("截图完成：\(result.image.width)×\(result.image.height) 像素")
-        ScreenshotOutput.deliver(result.image, scale: result.scale, sourceRect: result.sourceRect, forceSave: save)
+        guard let window else {
+            return ScreenshotOutput.deliver(result.image, scale: result.scale, sourceRect: result.sourceRect, forceSave: save)
+        }
+        // 整个窗口：按窗口自己的圆角切掉四个角（角外透明，和 macOS 按住 ⌥ 截窗口一样，不带阴影）；
+        // 设置里开了阴影时再加上阴影。要先量一下窗口圆角，稍等几十毫秒
+        let withShadow = Self.windowShadowEnabled
+        Task { @MainActor in
+            let radius = await WindowShape.cornerRadius(of: window, scale: result.scale)
+            let shaped = await Task.detached(priority: .userInitiated) {
+                withShadow ? ImageEffects.windowWithShadow(result.image, scale: result.scale, cornerRadius: radius)
+                           : ImageEncoder.rounded(result.image, radius: radius)
+            }.value
+            var sourceRect = result.sourceRect
+            if withShadow, shaped != nil {
+                let insets = ImageEffects.windowShadowInsets
+                sourceRect = CGRect(x: sourceRect.minX - insets.left, y: sourceRect.minY - insets.bottom,
+                                    width: sourceRect.width + insets.left + insets.right,
+                                    height: sourceRect.height + insets.top + insets.bottom)
+            }
+            Log.capture.notice("窗口截图：圆角 \(radius / result.scale, format: .fixed(precision: 1)) 点\(withShadow ? "，带阴影" : "", privacy: .public)")
+            ScreenshotOutput.deliver(shaped ?? result.image, scale: result.scale, sourceRect: sourceRect, forceSave: save)
+        }
     }
+
+    /// 按窗口形状截的窗口：区域模式下截的正好是一整个 App 窗口（悬停或单击选中、没调整过），设置里开着「窗口圆角」或「窗口阴影」。
+    /// 框选的区域、全屏、露出屏幕外的窗口都不算，照样是直角
+    private var shapedWindow: DetectedWindow? {
+        guard purpose == .screenshot, mode == .region, Self.windowCornersEnabled || Self.windowShadowEnabled else { return nil }
+        return selector.targetWindow
+    }
+
+    static var windowCornersEnabled: Bool {
+        #if DEBUG
+        if let debugWindowShadow { return debugWindowShadow }
+        #endif
+        return Preferences.shared.windowCorners
+    }
+
+    static var windowShadowEnabled: Bool {
+        #if DEBUG
+        if let debugWindowShadow { return debugWindowShadow }
+        #endif
+        return Preferences.shared.windowShadow
+    }
+
 
     /// 长截图：关掉截图界面（焦点还给原来的 App），交给长截图会话。要在画标注之前开始
     /// 长截图：区域模式截选区；全屏模式把鼠标所在的整块屏幕当作选区（菜单栏、程序坞会被认作固定的顶栏、底栏，只出现一次）
@@ -307,6 +384,7 @@ final class ScreenshotSession: OverlayEventHandler {
         guard let result = makeResult() else { return }
         finish(restoreFocus: false)
         _ = PinManager.shared.pin(CapturedImage(image: result.image, scale: result.scale, sourceRect: result.sourceRect))
+        ScreenshotHistory.shared.record(result.image, scale: result.scale)
     }
 
     /// 截图结果：区域模式截选区（没有选区截高亮窗口），全屏模式截鼠标所在的屏幕；有标注时合成进去
@@ -407,14 +485,15 @@ final class ScreenshotSession: OverlayEventHandler {
         // 圆角拉条：区域模式、有选区时挂在选区所在屏幕的遮罩上（跟着尺寸标签摆放）
         for (id, window) in overlays {
             guard let overlay = window.contentView as? OverlayView else { continue }
-            let wantsBar = !isTranslating && mode == .region && selector.selection != nil && selector.selectionDisplayID == id
+            let wantsBar = !isTextCapture && mode == .region && selector.selection != nil && selector.selectionDisplayID == id
+                && !usesWindowShape
             if wantsBar, overlay.accessory !== cornerBar {
                 overlay.accessory = cornerBar
             } else if !wantsBar, overlay.accessory === cornerBar {
                 overlay.accessory = nil
             }
         }
-        if isTranslating {
+        if isTextCapture {
             toolbar.removeFromSuperview()
             return
         }
@@ -458,7 +537,7 @@ final class ScreenshotSession: OverlayEventHandler {
 
     /// 放大镜只在需要对准像素时出现：还没有选区（悬停 / 准备拖拽），或正在拖出选区、拖动控制点（选着标注工具时也是）
     private var isMagnifierVisible: Bool {
-        !isTranslating && mode == .region && displays[activeDisplayID] != nil
+        !isTextCapture && mode == .region && displays[activeDisplayID] != nil
             && (annotator?.tool == nil || selector.isSizing)
             && (selector.selection == nil || selector.isSizing)
     }
@@ -523,7 +602,7 @@ final class ScreenshotSession: OverlayEventHandler {
         guard let window = overlays[activeDisplayID], let view = window.contentView,
               let frozen = displays[activeDisplayID] else { return }
         let key = hotkey.displayString
-        switch (mode, isTranslating) {
+        switch (mode, isTextCapture) {
         case (.region, false):
             hint.setContent(title: "区域截图", items: ["\(key) 切换全屏", "Enter 完成", "Esc 取消"])
         case (.fullscreen, false):
@@ -719,7 +798,7 @@ final class ScreenshotSession: OverlayEventHandler {
         case .selector:
             selector.mouseUp(at: point)
             // 截屏翻译：松开鼠标立即识别（拖出的选区，或单击选中的窗口）
-            if isTranslating, selector.target != nil {
+            if isTextCapture, selector.target != nil {
                 mouseOwner = .none
                 complete()
                 return
@@ -748,6 +827,9 @@ final class ScreenshotSession: OverlayEventHandler {
     // MARK: - 调试
 
     #if DEBUG
+    /// 自测：不按设置，固定开 / 关窗口阴影（nil 按设置）
+    static var debugWindowShadow: Bool?
+    var debugUsesWindowShape: Bool { usesWindowShape }
     var debugSelector: RegionSelector { selector }
     var debugMagnifierVisible: Bool { magnifier.superview != nil }
     var debugActiveOverlay: NSView? { overlays[activeDisplayID]?.contentView }

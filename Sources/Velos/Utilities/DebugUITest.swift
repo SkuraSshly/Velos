@@ -69,6 +69,9 @@ enum DebugUITest {
     static func runIfRequested() {
         guard let dir = outputDir else { return }
         ScreenshotOutput.dryRun = true
+        // 原有的检查都按「不带窗口阴影」核对尺寸；窗口阴影在 testNewFeatures 里单独测。最近截图存到输出目录里
+        ScreenshotSession.debugWindowShadow = false
+        ScreenshotHistory.debugDirectory = dir.appendingPathComponent("history", isDirectory: true)
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1))
             CaptureCoordinator.shared.beginScreenshot()
@@ -216,6 +219,9 @@ enum DebugUITest {
         await runAnnotationChecks(session, dir: dir, check: check, g: g, key: key, render: render)
 
         // 14. Enter 完成：输出尺寸 = 选区 × 缩放倍数
+        // 角落缩略图只在关掉晾衣绳时出现（开着时截图挂到绳上），这一段测缩略图：先关掉，测完恢复
+        let clotheslineWasOn = Preferences.shared.clotheslineEnabled
+        Preferences.shared.clotheslineEnabled = false
         let outputDir = dir.appendingPathComponent("output", isDirectory: true)
         ScreenshotOutput.dryRunDirectory = outputDir
         _ = session.overlayKeyDown(key(kVK_Return))
@@ -457,12 +463,15 @@ enum DebugUITest {
         } else {
             check("截图界面 ⌘S 完成并保存", false, "第二次截图没有启动")
         }
+        Preferences.shared.clotheslineEnabled = clotheslineWasOn
 
         checkEncoder(check: check)
         await runTranslateChecks(dir: dir, check: check)
         await runLongCaptureChecks(dir: dir, check: check)
         await testDockIcon(check)
         await testPinFromToolbar(check)
+        await testNewFeatures(dir: dir, check: check)
+        await testClothesline(dir: dir, check: check)
         ToolStyleMemory.debugCleanUp()
         report(check.lines, to: dir)
     }
@@ -669,7 +678,7 @@ enum DebugUITest {
             session.overlayRightMouseDown(at: g(300, 250))
             check("右键取消截屏翻译", coordinator.debugSession == nil)
         }
-        check("截屏翻译结束后恢复 ⌥D 全局快捷键", HotkeyManager.shared.debugRegisteredCount == 3)
+        check("截屏翻译结束后恢复 ⌥D 全局快捷键", HotkeyManager.shared.debugRegisteredCount == HotkeyManager.Action.allCases.count)
         controller.debugHUD?.close()
 
         // 识别在单独的服务进程里做：识别后服务在运行，空闲 30 秒后自己退出（释放内存），之后再识别会自动重新启动
@@ -1239,6 +1248,205 @@ enum DebugUITest {
         check("从截图工具栏钉图：钉上 0.8 秒后仍然选中、Velos 在前台", PinManager.shared.count == before + 1
               && pin?.isKeyWindow == true && NSApp.isActive, "钉图 \(PinManager.shared.count - before) 张，选中 \(pin?.isKeyWindow == true)，前台 \(NSApp.isActive)")
         pin?.close()
+    }
+
+    /// 2.5 的新功能：窗口圆角、最近截图
+    private static func testNewFeatures(dir: URL, check: Checks) async {
+        let coordinator = CaptureCoordinator.shared
+        let pasteboard = NSPasteboard(name: .init("local.velos.selftest"))
+        let o = screenOrigin
+        func g(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: o.x + x, y: o.y + y) }
+        func begin(_ action: HotkeyManager.Action = .screenshot) async -> ScreenshotSession? {
+            coordinator.handleHotkey(action)
+            try? await Task.sleep(for: .milliseconds(600))
+            return coordinator.debugSession
+        }
+        func clipboardSize() -> CGSize? { imageInfo(pasteboard.data(forType: .png))?.size }
+        func keep(_ name: String) {
+            if let data = pasteboard.data(forType: .png) { try? data.write(to: dir.appendingPathComponent(name)) }
+        }
+        ThumbnailManager.shared.debugDismissAll()
+        ScreenshotHistory.shared.clear()
+        try? await Task.sleep(for: .milliseconds(300))
+
+        // 1. 窗口阴影：单击选中整个窗口 A（600×400 点）截图，四周加出阴影的空白、保留透明
+        ScreenshotSession.debugWindowShadow = true
+        defer { ScreenshotSession.debugWindowShadow = false }
+        guard let session = await begin() else { return check("新功能：截图界面", false) }
+        let scale = session.debugScale
+        session.overlayMouseMoved(to: g(300, 300))
+        check("窗口阴影：悬停整个窗口时用窗口自己的形状", session.debugUsesWindowShape)
+        session.overlayMouseDown(at: g(300, 300))
+        session.overlayMouseUp(at: g(300, 300))
+        check("窗口阴影：单击选中整个窗口，不显示圆角拉条", session.debugUsesWindowShape && session.debugCornerBar.superview == nil)
+        pasteboard.clearContents()
+        session.debugComplete()
+        try? await Task.sleep(for: .milliseconds(1200))
+        let insets = ImageEffects.windowShadowInsets
+        let shadowed = CGSize(width: (600 + insets.left + insets.right) * scale, height: (400 + insets.top + insets.bottom) * scale)
+        check("窗口阴影：复制的图四周加了阴影的空白", clipboardSize() == shadowed, "期望 \(shadowed)，得到 \(String(describing: clipboardSize()))")
+        check("窗口阴影：四周透明（PNG 带透明通道）", imageInfo(pasteboard.data(forType: .png))?.hasAlpha == true)
+        keep("20-窗口阴影.png")
+
+        // 2. 框选的区域不带阴影；记下这次的区域
+        guard let second = await begin() else { return check("新功能：第二次截图", false) }
+        second.overlayMouseDown(at: g(100, 100))
+        second.overlayMouseDragged(to: g(200, 180))
+        second.overlayMouseDragged(to: g(300, 250))
+        second.overlayMouseUp(at: g(300, 250))
+        check("框选的区域：不带窗口阴影", !second.debugUsesWindowShape)
+        pasteboard.clearContents()
+        second.debugComplete()
+        try? await Task.sleep(for: .milliseconds(600))
+        check("框选的区域：复制的图就是选区大小", clipboardSize() == CGSize(width: 200 * scale, height: 150 * scale))
+        // 6. 菜单
+        let titles = StatusBarController.debugCurrent?.debugMenuTitles ?? []
+        check("菜单：截图、录屏、截屏翻译、晾衣绳、设置、退出（没有截取上次区域、延时截图、最近截图、识别文字）",
+              ["截图", "录屏", "截屏翻译", "晾衣绳", "设置…", "退出 Velos"].allSatisfy(titles.contains)
+              && !titles.contains { ["截取上次区域", "延时截图", "最近截图", "识别文字"].contains($0) }, "\(titles)")
+
+        // 7. 最近截图：上面几次截图都记下了；重新复制、钉到屏幕；最多 20 张；清空
+        try? await Task.sleep(for: .milliseconds(500))
+        let entries = ScreenshotHistory.entries()
+        check("最近截图：记下了刚才的截图", entries.count == 2, "\(entries.count) 张")
+        check("最近截图：最新的在前、有缩略图", entries.first.map { FileManager.default.fileExists(atPath: $0.thumbnailURL.path) } == true
+              && entries.map(\.date) == entries.map(\.date).sorted(by: >))
+        if let newest = entries.first {
+            pasteboard.clearContents()
+            ScreenshotHistory.shared.copy(newest)
+            check("最近截图：单击重新复制（原图大小）", clipboardSize() == CGSize(width: 200 * scale, height: 150 * scale))
+            let pinned = ScreenshotHistory.shared.pin(newest)
+            check("最近截图：按住 ⌥ 钉到屏幕", pinned != nil && pinned?.isVisible == true)
+            pinned?.close()
+        }
+        do {
+            for i in 0..<22 {
+                // 每张大小不同：像素完全一样的图只挂一次
+                let image = DebugUITest.tinyImage(width: 20 + i, height: 20)
+                if let png = ImageEncoder.encode(image, format: .png, quality: 1, scale: 1) {
+                    ScreenshotHistory.write(png: png, image: image, scale: 1, date: Date().addingTimeInterval(Double(i)))
+                }
+            }
+        }
+        check("最近截图：最多留 \(ScreenshotHistory.limit) 张", ScreenshotHistory.entries().count == ScreenshotHistory.limit,
+              "\(ScreenshotHistory.entries().count) 张")
+        ScreenshotHistory.shared.clear()
+        try? await Task.sleep(for: .milliseconds(300))
+        check("最近截图：清空", ScreenshotHistory.entries().isEmpty)
+
+        ThumbnailManager.shared.debugDismissAll()
+    }
+
+    /// 晾衣绳：按住 ⌥ 移到最上面放下来、卡片上能点、离开收起并释放、快捷键放下 / 收起
+    private static func testClothesline(dir: URL, check: Checks) async {
+        let controller = ClotheslineController.shared
+        let model = controller.debugModel
+        let pasteboard = NSPasteboard(name: .init("local.velos.selftest"))
+        guard let screen = NSScreen.screens.first else { return check("晾衣绳：屏幕", false) }
+        // 前面截图时绳子可能刚放下来给人看：先收起，从收着的状态开始测
+        controller.hide()
+        ScreenshotHistory.shared.clear()
+        try? await Task.sleep(for: .milliseconds(400))
+        check("晾衣绳：开着晾衣绳就听鼠标（要接拖过来的图片）", controller.debugIsListening)
+
+        // 挂上 3 张
+        for (i, size) in [(160, 100), (100, 160), (240, 120)].enumerated() {
+            let image = tinyImage(width: size.0 * 2, height: size.1 * 2)
+            if let png = ImageEncoder.encode(image, format: .png, quality: 1, scale: 2) {
+                ScreenshotHistory.write(png: png, image: image, scale: 2, date: Date().addingTimeInterval(Double(i)))
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        check("晾衣绳：挂上截图后照样在听", controller.debugIsListening)
+
+        check("晾衣绳：用事件分接听鼠标（鼠标在菜单栏、全屏 App 上也收得到）", controller.debugUsesEventTap)
+        // 按住 ⌥ 把鼠标移到屏幕最上面：放下来；不按 ⌥ 不放下来
+        let edge = ClotheslineController.topEdge(of: screen)
+        let hot = CGPoint(x: edge.midX, y: edge.midY)
+        controller.debugPointer(at: hot, option: false)
+        check("晾衣绳：没按 ⌥ 移到最上面不会放下来", !controller.isRevealed)
+        controller.debugPointer(at: CGPoint(x: edge.midX, y: edge.minY - 40), option: true)
+        check("晾衣绳：按着 ⌥ 但没到最上面不会放下来", !controller.isRevealed)
+        controller.debugPointer(at: hot, option: true)
+        try? await Task.sleep(for: .milliseconds(700))
+        guard controller.isRevealed, let panel = controller.debugPanel else { return check("晾衣绳：放下来", false) }
+        check("晾衣绳：放下来，3 张都挂上了（最新的在右边）", model.items.count == 3 && panel.isVisible
+              && model.items.last?.entry.date == ScreenshotHistory.entries().first?.date)
+        check("晾衣绳：挂在菜单栏下面、和屏幕一样宽", abs(panel.frame.maxY - screen.visibleFrame.maxY) < 1
+              && abs(panel.frame.width - screen.visibleFrame.width) < 1)
+        check("晾衣绳：卡片以外的地方点击穿透", panel.ignoresMouseEvents)
+        DebugSnapshots.renderOverlay(panel.contentView, to: dir.appendingPathComponent("23-晾衣绳.png"))
+
+        // 鼠标移到卡片上：面板接收点击
+        if let rect = model.hitRects.values.first {
+            let onCard = CGPoint(x: panel.frame.minX + rect.midX, y: panel.frame.maxY - rect.midY)
+            controller.debugPointer(at: onCard)
+            check("晾衣绳：鼠标在卡片上时可以点", !panel.ignoresMouseEvents)
+            check("晾衣绳：鼠标在绳子上不会收起", !controller.debugIsWaitingToRetract)
+        } else {
+            check("晾衣绳：卡片位置", false, "没有上报卡片位置")
+        }
+
+        // 复制按钮、多选一起复制、取下
+        if let first = model.items.first, let last = model.items.last {
+            pasteboard.clearContents()
+            model.copy(last.id)
+            check("晾衣绳：复制按钮（无损 PNG）", pasteboard.data(forType: .png) != nil && model.doneIDs == [last.id])
+            model.select(first.id, extending: false, toggling: true)
+            model.select(last.id, extending: false, toggling: true)
+            pasteboard.clearContents()
+            model.copy(first.id)
+            let files = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL] ?? []
+            check("晾衣绳：⌘ 单击选中两张，一起复制成两个文件", files.count == 2
+                  && files.allSatisfy { $0.lastPathComponent.hasPrefix("截图 ") }, "\(files.map(\.lastPathComponent))")
+            check("晾衣绳：拖走选中的两张", model.dragFiles(last.id).count == 2)
+            model.clearSelection()
+            model.remove(first.id)
+            try? await Task.sleep(for: .milliseconds(400))
+            check("晾衣绳：取下一张，最近截图里也少了这张", model.items.count == 2 && ScreenshotHistory.entries().count == 2)
+        }
+
+        // 鼠标离开：0.5 秒后收起，面板和缩略图都释放
+        let away = CGPoint(x: screen.frame.midX, y: screen.frame.midY)
+        controller.debugPointer(at: away)
+        check("晾衣绳：鼠标离开，开始等 0.5 秒", controller.debugIsWaitingToRetract)
+        controller.debugFinishRetract(pointer: away)
+        try? await Task.sleep(for: .milliseconds(600))
+        check("晾衣绳：收起后面板和缩略图都释放", !controller.isRevealed && controller.debugPanel == nil && model.items.isEmpty)
+
+        // 快捷键：放下来后鼠标没进过绳子也不收；再按一次收起
+        CaptureCoordinator.shared.handleHotkey(.clothesline)
+        try? await Task.sleep(for: .milliseconds(400))
+        check("晾衣绳：⌥F 放下来", controller.isRevealed)
+        controller.debugPointer(at: away)
+        check("晾衣绳：用快捷键放下的，鼠标还没过去时不自己收起", !controller.debugIsWaitingToRetract)
+        CaptureCoordinator.shared.handleHotkey(.clothesline)
+        try? await Task.sleep(for: .milliseconds(500))
+        check("晾衣绳：再按 ⌥F 收起", !controller.isRevealed && controller.debugPanel == nil)
+
+        // 关掉「按住 ⌥ 移到最上面时放下来」：快捷键照常
+        let prefs = Preferences.shared
+        prefs.clotheslineHover = false
+        try? await Task.sleep(for: .milliseconds(300))
+        check("晾衣绳：关掉后按 ⌥ 移到最上面不再放下来", { controller.debugPointer(at: hot, option: true); return !controller.isRevealed }())
+        prefs.clotheslineHover = true
+        try? await Task.sleep(for: .milliseconds(300))
+        check("晾衣绳：打开后按 ⌥ 移到最上面又能放下来", { controller.debugPointer(at: hot, option: true); let shown = controller.isRevealed; controller.hide(); return shown }())
+        ScreenshotHistory.shared.clear()
+        try? await Task.sleep(for: .milliseconds(400))
+        check("晾衣绳：截图清空后按 ⌥ 移到最上面照样放下来（空绳显示提示）", { controller.debugPointer(at: hot, option: true); let shown = controller.isRevealed; controller.hide(); return shown }())
+    }
+
+    /// 一张小的测试图：杏色底、中间一块深色
+    static func tinyImage(width: Int = 120, height: Int = 80) -> CGImage {
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(srgbRed: 0.98, green: 0.85, blue: 0.7, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.setFillColor(CGColor(srgbRed: 0.2, green: 0.25, blue: 0.4, alpha: 1))
+        context.fill(CGRect(x: width / 4, y: height / 4, width: width / 2, height: height / 2))
+        return context.makeImage()!
     }
 
     /// 程序坞图标：设置里打开后出现、右键菜单和菜单栏菜单一样（没有重复的「退出」）、关掉后消失

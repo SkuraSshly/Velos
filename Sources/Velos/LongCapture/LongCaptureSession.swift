@@ -162,6 +162,7 @@ final class LongCaptureSession {
             case .pin:
                 // 钉在屏幕上：长图在钉图窗口里滚动查看，⌥ + 滚轮缩放
                 _ = PinManager.shared.pin(CapturedImage(image: image, scale: scale, sourceRect: sourceRect))
+                ScreenshotHistory.shared.record(image, scale: scale)
             case .done, .save:
                 ScreenshotOutput.deliver(image, scale: scale, sourceRect: sourceRect, forceSave: finish == .save)
             }

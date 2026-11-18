@@ -210,12 +210,10 @@ final class ThumbnailManager {
             entry.view.showCopied()
         }
         view.onDelete = { [weak self, weak entry] in
-            // 移到废纸篓（不是永久删除，可以从废纸篓里放回）
+            // 按设置放进废纸篓（默认，能放回来）或永久删除
             guard let entry else { return }
             VideoPreviewWindowController.close(for: url)
-            NSWorkspace.shared.recycle([url]) { _, error in
-                if let error { Log.capture.error("移到废纸篓失败：\(error.localizedDescription, privacy: .public)") }
-            }
+            RecordingFiles.delete([url])
             self?.dismiss(entry)
         }
     }

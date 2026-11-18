@@ -46,6 +46,7 @@ final class VideoPreviewWindowController: NSWindowController, NSWindowDelegate {
                               backing: .buffered, defer: false)
         window.title = url.lastPathComponent
         window.identifier = .velosCapturable
+        window.allowFullScreen()
         window.isReleasedWhenClosed = false
         window.contentAspectRatio = size
         // 最小宽度 320（按视频比例），免得拖得太小、播放控件挤坏

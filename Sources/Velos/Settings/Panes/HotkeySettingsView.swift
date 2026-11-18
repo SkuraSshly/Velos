@@ -16,6 +16,8 @@ struct HotkeySettingsView: View {
                     defaultHotkey: .defaultRecording)
                 row(.translate, icon: "character.bubble", tint: .chipSage, hotkey: prefs.translateHotkey,
                     defaultHotkey: .defaultTranslate)
+                row(.clothesline, icon: "photo.on.rectangle.angled", tint: .chipHoney, hotkey: prefs.clotheslineHotkey,
+                    defaultHotkey: .defaultClothesline)
             }
             SettingsSection(title: "小技巧") {
                 SettingsRow(icon: "arrow.left.arrow.right", tint: .chipLavender, title: "区域 ↔ 全屏",
@@ -294,6 +296,7 @@ extension HotkeyManager.Action {
         case .screenshot: "冻结屏幕后框选或单击窗口，可以标注"
         case .recording: "区域或全屏录制；录制中再按一次停止"
         case .translate: "框选文字或单击窗口，松开即识别并翻译"
+        case .clothesline: "放下 / 收起屏幕顶上挂着最近截图的晾衣绳"
         }
     }
 }
