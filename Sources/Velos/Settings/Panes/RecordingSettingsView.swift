@@ -36,7 +36,7 @@ struct RecordingSettingsView: View {
                 }
             }
 
-            SettingsSection(title: "声音", footer: "录制时可在选区旁的选项条里临时更改，会记住上次的选择。") {
+            SettingsSection(title: "声音") {
                 SwitchRow(icon: "speaker.wave.2.fill", tint: .chipSage, title: "录制系统声音", isFirst: true,
                           isOn: $prefs.recordSystemAudio)
                 SwitchRow(icon: "mic.fill", tint: .chipRose, title: "录制麦克风", isOn: $prefs.recordMicrophone)
@@ -47,27 +47,16 @@ struct RecordingSettingsView: View {
                           isOn: $prefs.recordingShowsCursor)
                 SwitchRow(icon: "cursorarrow.click.2", tint: .apricot, title: "高亮鼠标点击",
                           caption: "点击处出现杏色圆圈（右键为珊瑚色），会录进视频。", isOn: $prefs.highlightClicks)
-                SwitchRow(icon: "timer", tint: .coral, title: "开始前 3 秒倒计时",
-                          caption: "倒计时期间按 Esc 取消，按 Enter 立即开始。", isOn: $prefs.recordingCountdown)
+                SwitchRow(icon: "timer", tint: .coral, title: "开始前 3 秒倒计时", isOn: $prefs.recordingCountdown)
                 SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky,
                           title: prefs.clotheslineEnabled ? "录完挂到晾衣绳上给你看" : "完成后在屏幕角落显示缩略图",
-                          caption: prefs.clotheslineEnabled
-                              ? "开着晾衣绳时录屏不再出现在角落，而是挂到绳上（关掉这项也会挂，只是绳子不放下来）。卡片上可以复制、导出 GIF，按空格预览，右键移到废纸篓。"
-                              : "缩略图上可以预览、拷贝文件、导出 GIF、移到废纸篓。",
+                          caption: prefs.clotheslineEnabled ? "关掉这项也会挂上绳，只是绳子不放下来。" : nil,
                           isOn: $prefs.recordingShowThumbnail)
-                SettingsRow(icon: "trash", tint: .chipRose, title: "删除录屏时",
-                            caption: prefs.recordingDeleteForever
-                                ? "⚠️ 永久删除：文件直接删掉，不进废纸篓，没法找回。"
-                                : "放入废纸篓：删错了可以从废纸篓里放回来。") {
-                    WarmSegmented(options: [(false, "放入废纸篓"), (true, "永久删除")],
-                                  selection: $prefs.recordingDeleteForever, segmentWidth: 84)
-                }
             }
 
-            SettingsSection(title: "GIF",
-                            footer: "刚录完的录屏，在缩略图上点「GIF」；以前的录屏用上面的「选择录屏…」。GIF 最多 256 色，适合界面演示。") {
+            SettingsSection(title: "GIF", footer: "GIF 最多 256 色，适合界面演示。") {
                 SettingsRow(icon: "film.stack", tint: .coral, title: "将录屏转为 GIF",
-                            caption: "GIF 保存在视频旁边，进度显示在屏幕角落的缩略图上", isFirst: true) {
+                            caption: "GIF 保存在视频旁边", isFirst: true) {
                     Button("选择录屏…") { GIFConversion.chooseAndConvert() }
                         .buttonStyle(WarmButtonStyle())
                 }

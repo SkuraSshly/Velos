@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 截图：格式、画面、完成后的行为、长截图
+/// 截图：格式、画面、完成后的行为（怎么用见「小技巧」）
 struct ScreenshotSettingsView: View {
     @ObservedObject private var prefs = Preferences.shared
 
@@ -47,29 +47,17 @@ struct ScreenshotSettingsView: View {
                 SwitchRow(icon: "doc.on.clipboard", tint: .apricot, title: "复制到剪贴板", isFirst: true,
                           isOn: $prefs.screenshotCopyToClipboard)
                 SwitchRow(icon: "square.and.arrow.down", tint: .chipSage, title: "自动保存到文件",
-                          caption: "不自动保存时，可在缩略图上点「保存」，或在截图界面按 ⌘S 完成并保存。",
                           isOn: $prefs.screenshotSaveToFile)
                 SwitchRow(icon: "rectangle.inset.bottomright.filled", tint: .chipSky,
                           title: prefs.clotheslineEnabled ? "截图后挂到晾衣绳上给你看" : "在屏幕角落显示缩略图",
-                          caption: prefs.clotheslineEnabled
-                              ? "开着晾衣绳时，截图不再出现在角落，而是直接挂到屏幕顶上的绳子上（绳子放下来 2.5 秒）。" : nil,
+                          caption: prefs.clotheslineEnabled ? "绳子放下来 2.5 秒。" : nil,
                           isOn: $prefs.screenshotShowThumbnail)
                 SwitchRow(icon: "", title: "粘贴后自动收起缩略图",
                           caption: "用了剪贴板历史工具（如 Maccy、Paste）时，它会立即读取剪贴板，缩略图会马上收起，可关闭此项。",
                           indented: true, isOn: $prefs.hideThumbnailAfterPaste)
                     .disabled(!prefs.screenshotShowThumbnail || !prefs.screenshotCopyToClipboard)
             }
-
-            SettingsSection(title: "长截图") {
-                SettingsRow(icon: "scissors", tint: .apricot, title: "使用方法", caption: longCaptureFooter, isFirst: true) {
-                    EmptyView()
-                }
-            }
         }
-    }
-
-    private var longCaptureFooter: String {
-        "按 \(prefs.screenshotHotkey.displayString) 框选区域后，点工具栏上的长截图按钮，在选区里滚动页面即可（Esc 取消）。滚得太快跟丢时会自动接回。最长 20000 像素。"
     }
 
     private var footer: String? {

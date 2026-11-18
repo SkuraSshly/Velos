@@ -26,13 +26,13 @@ SF Symbols 按 Apple 的许可只在 Apple 平台的 App 界面里使用。
 ### Picline
 
 - 项目：https://github.com/Xinguangcuican/Picline（Tendedero 的修改分支）
-- 用到的地方：晾衣绳的照片大小、保留数量与滚动、⇧ 连选、共享、打开、接收剪贴板图片、拖到屏幕顶部挂上、卡片的晃动和风、挂上 / 取下 / 删除时的声音
+- 用到的地方：晾衣绳的照片大小、保留数量与滚动、⇧ 连选、共享、打开、接收剪贴板图片、拖到屏幕顶部挂上、卡片的晃动和风
 - 许可证：MIT，沿用下面 Tendedero 的版权声明
 
 ### Tendedero
 
 - 项目：https://github.com/alejandrobujan/tendedero
-- 用到的地方：晾衣绳（`Sources/Velos/Clothesline/`）的界面、卡片上的鼠标操作、面板和放下 / 收起的规则、截图飞到绳上的动画，改写成以 Velos 的「最近截图」为数据，并把鼠标检测从定时查询改成系统通知
+- 用到的地方：晾衣绳（`Sources/Velos/Clothesline/`）的界面、卡片上的鼠标操作、面板和放下 / 收起的规则、截图飞到绳上的动画、晾衣绳的声音（什么时候响、响哪一声），改写成以 Velos 的「最近截图」为数据，并把鼠标检测从定时查询改成系统通知
 - 许可证：MIT（只适用于代码；Tendedero 的名字和图标不在授权范围内，Velos 没有使用）
 
 ```

@@ -299,6 +299,7 @@ final class ClotheslineModel: ObservableObject {
 
     /// 钉在绳上：挂到最左边，新截图再多也不会把它挤掉；再点一次取消
     func setPinnedOnLine(_ id: URL, _ pinned: Bool) {
+        if pinned { SoundEffects.play(.hang) }   // 钉上「叮」一声（取消钉住不响）
         ScreenshotHistory.shared.setPinned(targets(id).map(\.entry), pinned)
     }
 

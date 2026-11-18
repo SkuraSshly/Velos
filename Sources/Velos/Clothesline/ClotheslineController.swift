@@ -275,9 +275,9 @@ final class ClotheslineController {
         flight.fly(to: target, cornerRadius: CardFrame.radius - CardFrame.inset, tilt: tilt) { [weak self] in
             guard let self else { return }
             // 先让真卡片出现，飞的那张下一帧再收掉
-            // 真卡片在下面 0.16 秒淡入、飞的这张在上面淡出；落下的这张自己轻轻晃一下（见 PeggedView.land），「叮」一声
+            // 真卡片在下面 0.16 秒淡入、飞的这张在上面淡出；落下的这张自己轻轻晃一下（见 PeggedView.land）。
+            // 截图、录屏刚响过快门 / 结束提示音，落下时不再另响（和 Tendedero 一样）
             if self.model.flyingID == id { self.model.flyingID = nil }
-            SoundEffects.play(.hang)
         }
     }
 
@@ -495,7 +495,7 @@ final class ClotheslineController {
             } else if let nextFlight {
                 nextFlight.fadeAway()   // 没有新卡片可落（不该发生）：原地淡掉
             } else {
-                SoundEffects.play(.hang)   // 不飞的（剪贴板、访达挂上来的）：挂上就「叮」一声
+                SoundEffects.play(.hang)   // 不飞的（剪贴板、访达挂上来的，没有快门声）：挂上就「叮」一声
             }
         }
     }

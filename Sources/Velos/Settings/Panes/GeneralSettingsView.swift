@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 通用：开机自启、菜单栏图标、权限状态（保存位置在「截图」「录屏」里）
+/// 通用：开机自启、菜单栏图标、声音、删除文件、更新、权限状态（保存位置在「截图」「录屏」里）
 struct GeneralSettingsView: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var permissions = PermissionManager.shared
@@ -22,9 +22,20 @@ struct GeneralSettingsView: View {
                           caption: "隐藏后通过快捷键使用；再次打开 Velos 应用即可回到这里。", isOn: $prefs.showMenuBarIcon)
                 SwitchRow(icon: "dock.rectangle", tint: .chipSky, title: "在程序坞显示图标",
                           caption: "点程序坞里的图标打开设置；右键可以截图、录屏、截屏翻译。", isOn: $prefs.showDockIcon)
+            }
+
+            SettingsSection(title: "操作") {
                 SwitchRow(icon: "speaker.wave.2", tint: .chipHoney, title: "声音",
-                          caption: "截图时小小的「咔嚓」一声；录屏倒计时每秒一声，开始、结束各一声（不会录进视频）；挂到晾衣绳上「叮」，取下「啵」，删除文件是拖到废纸篓的声音。用的都是系统自带的声音。",
-                          isOn: $prefs.soundEffects)
+                          caption: "截图、录屏、晾衣绳操作时的提示音（系统自带，不会录进视频）。",
+                          isFirst: true, isOn: $prefs.soundEffects)
+                // 删除录屏、删除存好的截图（晾衣绳卡片上的删除、录屏缩略图上的删除）都按这个来
+                SettingsRow(icon: "trash", tint: .chipRose, title: "删除文件时",
+                            caption: prefs.recordingDeleteForever
+                                ? "⚠️ 文件直接删掉，不进废纸篓，没法找回。"
+                                : "删错了可以从废纸篓里放回来。") {
+                    WarmSegmented(options: [(false, "放入废纸篓"), (true, "永久删除")],
+                                  selection: $prefs.recordingDeleteForever, segmentWidth: 84)
+                }
             }
 
             SettingsSection(title: "更新",

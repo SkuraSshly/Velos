@@ -46,8 +46,7 @@ struct TranslateSettingsView: View {
                 OnlineEngineGroup(model: engines, prompt: $prefs.llmPrompt)
             }
 
-            SettingsSection(title: "结果窗口",
-                            footer: "窗口里的快捷键：⌘C 复制译文、⇧⌘C 复制原文、⌘R 重新翻译、⌘P 钉住 / 取消钉住、Esc 关闭。截屏翻译的快捷键在「快捷键」里设置。") {
+            SettingsSection(title: "结果窗口") {
                 SettingsRow(icon: "arrow.right.circle.fill", tint: .chipSky, title: "默认目标语言",
                             caption: prefs.defaultTargetLanguage.isEmpty ? "自动：中文译成英文，其他语言译成简体中文"
                                                                          : "原文就是这种语言时，中文译成英文、其他译成简体中文",

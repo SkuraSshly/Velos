@@ -203,8 +203,7 @@ struct IconChip: View {
         RoundedRectangle(cornerRadius: 7, style: .continuous)
             .fill(LinearGradient(colors: [tint.opacity(0.78), tint], startPoint: .top, endPoint: .bottom))
             .overlay(
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .semibold))
+                Glyph(symbol)
                     .foregroundStyle(.white)
             )
             .frame(width: 26, height: 26)

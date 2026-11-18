@@ -1,6 +1,8 @@
-// 晾衣绳的声音和音量照 Picline（https://github.com/Xinguangcuican/Picline，MIT，见 THIRD_PARTY_NOTICES.md）：
-// 挂上「叮」（Tink，0.35）、取下「啵」（Pop，0.25）、删除文件是程序坞的「拖到废纸篓」。
-// 截图本身是系统截图的快门声，调小一点；录屏开始 / 结束是系统录屏的提示音，倒计时每秒一声短的 Morse。
+// 晾衣绳的声音照 Tendedero（https://github.com/alejandrobujan/tendedero，Copyright (c) 2026 Alejandro Buján，MIT，
+// 见 THIRD_PARTY_NOTICES.md）：截图只有系统截图的快门声，飞上绳时不再另响；没有快门声的（剪贴板、访达挂上来的）、
+// 撤销放回、钉在绳上「叮」（Tink，0.35）；取下「啵」（Pop，0.25）；删除文件是程序坞的「拖到废纸篓」。
+// 声音在后台线程开始播放（系统准备声音要一两帧，放在主线程会让同时进行的动画顿一下）。
+// 录屏开始 / 结束是系统录屏的提示音，倒计时每秒一声短的 Morse。
 
 import AppKit
 
@@ -11,9 +13,9 @@ import AppKit
 @MainActor
 enum SoundEffects {
     enum Effect {
-        /// 截图完成：小小的「咔嚓」
+        /// 截图完成：系统截图的快门声
         case shutter
-        /// 挂到晾衣绳上
+        /// 挂到晾衣绳上（没有快门声的）、撤销放回、钉在绳上
         case hang
         /// 从晾衣绳上取下
         case takeDown
@@ -26,7 +28,7 @@ enum SoundEffects {
 
         fileprivate var volume: Float {
             switch self {
-            case .shutter: 0.4
+            case .shutter: 1
             case .hang: 0.35
             case .takeDown: 0.25
             case .trash: 1
@@ -49,16 +51,16 @@ enum SoundEffects {
         }
     }
 
+    /// 每种声音读一次（读的是文件的引用），之后每次放复制一份：几声可以叠着放，互不打断
     private static var loaded: [Effect: NSSound] = [:]
+    private static let queue = DispatchQueue(label: "local.velos.sounds", qos: .userInitiated)
 
     static func play(_ effect: Effect) {
         guard Preferences.shared.soundEffects else { return }
-        guard let sound = loaded[effect] ?? effect.load().flatMap({ $0.copy() as? NSSound }) else { return }
-        // 存一份自己的（系统声音按名字拿到的是大家共用的那个，改音量会影响别人）
-        loaded[effect] = sound
+        guard let prototype = loaded[effect] ?? effect.load() else { return }
+        loaded[effect] = prototype
+        guard let sound = prototype.copy() as? NSSound else { return }
         sound.volume = effect.volume
-        // 连着来两下（例如连续截图）：从头再放，不叠在一起
-        if sound.isPlaying { sound.stop() }
-        sound.play()
+        queue.async { sound.play() }
     }
 }

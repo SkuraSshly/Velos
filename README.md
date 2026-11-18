@@ -5,7 +5,7 @@
 <h1 align="center">Velos</h1>
 
 <p align="center">
-  原生、轻巧的 macOS 截图工具：截图标注、长截图、录屏、截屏翻译<br>
+  原生、轻巧的 macOS 截图工具：截图标注、长截图、录屏、截屏翻译、晾衣绳<br>
   <sub>下载约 4 MB · 空闲内存约 14–50 MB · 默认不联网 · 不收集任何数据 · 没有第三方依赖</sub>
 </p>
 
@@ -35,6 +35,11 @@
     <td align="center"><a href="docs/images/translate.png"><img src="docs/images/translate.png" height="140" alt="截屏翻译"></a><br><sub><b>截屏翻译</b>：松开鼠标就出结果</sub></td>
   </tr>
 </table>
+<table align="center">
+  <tr>
+    <td align="center"><a href="docs/images/clothesline.png"><img src="docs/images/clothesline.png" width="640" alt="晾衣绳"></a><br><sub><b>晾衣绳</b>：截完的图「咔嚓」一声飞到屏幕顶上挂好，拖进任何 App 就发过去</sub></td>
+  </tr>
+</table>
 <p align="center"><sub>点击图片查看大图</sub></p>
 
 Velos（βέλος）在希腊语里是「箭」——像箭一样快、准地截下屏幕上的东西。
@@ -43,16 +48,17 @@ Velos（βέλος）在希腊语里是「箭」——像箭一样快、准地�
 
 | | |
 |---|---|
-| **截图** <kbd>⌥A</kbd> | 冻结画面后框选，悬停自动识别窗口，放大镜精确到像素。直接在原位标注：矩形、椭圆、箭头、画笔、文字、序号、马赛克、模糊……可以截圆角图；整个窗口截图时保留窗口的圆角。完成后复制、保存、钉在屏幕上，或打开编辑窗口继续改。最近的截图挂在屏幕顶上的晾衣绳（按住 <kbd>⌥</kbd> 把鼠标移到屏幕最上面或按 <kbd>⌥F</kbd>，鼠标停在上面可以复制、存文件，几张一起拖走）。 |
+| **截图** <kbd>⌥A</kbd> | 冻结画面后框选，悬停自动识别窗口，放大镜精确到像素。直接在原位标注：矩形、椭圆、箭头、画笔、文字、序号、马赛克、模糊……可以截圆角图；整个窗口截图时保留窗口的圆角。完成后复制、保存、钉在屏幕上，或打开编辑窗口继续改。 |
 | **长截图** | 框选后点工具栏的剪刀按钮，滚动页面，Velos 边滚边拼接；标题栏、输入框只出现一次；不改动你的滚动（鼠标、触控板、滚动工具都照常），滚得太快跟丢时自动接回；也可以点「自动滚动」让它匀速慢慢滚。 |
 | **录屏** <kbd>⌥S</kbd> | 区域或全屏，系统声音和麦克风混成一条音轨，可暂停；倒计时、点击高亮、导出 GIF。录制中照样能截图、翻译，并一起录进视频。 |
 | **截屏翻译** <kbd>⌥D</kbd> | 框选文字，离线识别、用 Apple 翻译离线翻译；单个单词查系统词典。也可以接入自己的翻译服务（腾讯、火山、百度、DeepL、OpenAI 兼容大模型等）。 |
+| **晾衣绳** <kbd>⌥F</kbd> | 截完的图、录完的屏飞到屏幕顶上的一根绳子上挂好，平时藏在菜单栏后面；按住 <kbd>⌥</kbd> 把鼠标移到屏幕最上面就滑下来。卡片上复制、存文件、钉在绳上，空格快速查看，拖进任何 App 就发过去，⌘Z 放回取下的。 |
 
 ## 安装
 
 需要 **macOS 15 或更新**、**Apple 芯片**的 Mac。
 
-1. 在 [Releases](https://github.com/SkuraSshly/Velos/releases/latest) 下载 `Velos-2.6.dmg`，把 Velos 拖进「应用程序」。
+1. 在 [Releases](https://github.com/SkuraSshly/Velos/releases/latest) 下载 `Velos-2.7.dmg`，把 Velos 拖进「应用程序」。
 2. 打开 Velos，按引导打开 **屏幕与系统录音** 权限（必需）。麦克风（录自己的声音）、辅助功能（长截图的自动滚动）用到时再开。
 
 > 这个版本没有 Apple 开发者证书签名和公证，第一次打开时 macOS 会拦下。到 **系统设置 › 隐私与安全性**，在页面下方点 **「仍要打开」**，只需一次。
@@ -90,4 +96,8 @@ open build/Velos.app
 
 ## 许可证
 
-[MIT](LICENSE)。晾衣绳的界面和交互移植自开源项目 [Tendedero](https://github.com/alejandrobujan/tendedero) 和 [Picline](https://github.com/Xinguangcuican/Picline)（MIT），见 [第三方代码声明](THIRD_PARTY_NOTICES.md)。
+[MIT](LICENSE)。
+
+## 致谢
+
+晾衣绳来自 [@alejandrobujan](https://github.com/alejandrobujan) 的开源项目 [Tendedero](https://github.com/alejandrobujan/tendedero)（[tendedero.app](https://tendedero.app/)）：绳子、卡片、飞上去的动画、晃动和声音的设计都出自 Alejandro Buján，Velos 移植、改写了它的代码（MIT）。部分功能（照片大小、保留数量、多选、接收剪贴板）参考了它的修改分支 [Picline](https://github.com/Xinguangcuican/Picline)。详见 [第三方代码声明](THIRD_PARTY_NOTICES.md)。谢谢！

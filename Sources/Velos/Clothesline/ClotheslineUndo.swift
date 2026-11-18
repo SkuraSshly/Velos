@@ -79,6 +79,7 @@ final class ClotheslineUndo {
         let restored = ScreenshotHistory.entries().filter { step.pinned.contains($0.url.lastPathComponent) }
         if !restored.isEmpty { ScreenshotHistory.shared.setPinned(restored, true) }
         Log.capture.notice("晾衣绳：撤销取下，放回 \(step.names.count) 张")
+        SoundEffects.play(.hang)
         ScreenshotHistory.notifyChanged()
         updateKey()
     }

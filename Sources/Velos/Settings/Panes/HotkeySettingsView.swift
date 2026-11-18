@@ -16,15 +16,8 @@ struct HotkeySettingsView: View {
                     defaultHotkey: .defaultRecording)
                 row(.translate, icon: "character.bubble", tint: .chipSage, hotkey: prefs.translateHotkey,
                     defaultHotkey: .defaultTranslate)
-                row(.clothesline, icon: "photo.on.rectangle.angled", tint: .chipHoney, hotkey: prefs.clotheslineHotkey,
+                row(.clothesline, icon: Glyph.clothesline, tint: .chipHoney, hotkey: prefs.clotheslineHotkey,
                     defaultHotkey: .defaultClothesline)
-            }
-            SettingsSection(title: "小技巧") {
-                SettingsRow(icon: "arrow.left.arrow.right", tint: .chipLavender, title: "区域 ↔ 全屏",
-                            caption: "选区界面里再按一次同一个快捷键（按住修饰键连按或松开后再按都行）即可切换；截屏翻译的全屏模式按 Enter 识别整屏。",
-                            isFirst: true) {
-                    EmptyView()
-                }
             }
         }
         .onDisappear { model.messages.removeAll() }

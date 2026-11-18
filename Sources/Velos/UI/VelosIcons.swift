@@ -14,6 +14,52 @@ enum VelosIcons {
         return image
     }()
 
+    /// 晾衣绳：一根微微下垂的绳子，上面用夹子夹着两张歪歪的照片
+    static let clothesline: NSImage = {
+        let image = NSImage(size: CGSize(width: 18, height: 18), flipped: true) { _ in
+            drawClothesline()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "晾衣绳"
+        return image
+    }()
+
+    /// 在 18 × 18 的坐标里画（y 轴向下）。小到 15 点也要认得出来：绳子细、照片是实心的、彼此留出空隙
+    static func drawClothesline(color: NSColor = .black) {
+        color.set()
+        // 绳子：从左到右微微下垂
+        let rope = NSBezierPath()
+        rope.lineWidth = 1.2
+        rope.lineCapStyle = .round
+        rope.move(to: CGPoint(x: 1, y: 3.4))
+        rope.curve(to: CGPoint(x: 17, y: 3.4), controlPoint1: CGPoint(x: 6, y: 5.6), controlPoint2: CGPoint(x: 12, y: 5.6))
+        rope.stroke()
+        // 两张照片：顶边挂在绳子上，各歪一点；上面一个小夹子
+        func photo(center: CGPoint, size: CGSize, degrees: CGFloat) {
+            let transform = NSAffineTransform()
+            transform.translateX(by: center.x, yBy: center.y)
+            transform.rotate(byDegrees: degrees)
+            let card = NSBezierPath(roundedRect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height),
+                                    xRadius: 1.1, yRadius: 1.1)
+            card.append(NSBezierPath(roundedRect: CGRect(x: -0.75, y: -size.height / 2 - 2.2, width: 1.5, height: 2.6),
+                                     xRadius: 0.5, yRadius: 0.5))
+            card.transform(using: transform as AffineTransform)
+            card.fill()
+        }
+        photo(center: CGPoint(x: 5.1, y: 9.9), size: CGSize(width: 5.6, height: 7), degrees: -7)
+        photo(center: CGPoint(x: 12.9, y: 10.1), size: CGSize(width: 5.6, height: 7), degrees: 7)
+    }
+
+    /// 自己画的图标的名字：设置里图标和系统图标用同一个字符串表示，见 Glyph
+    static func named(_ name: String) -> NSImage? {
+        switch name {
+        case Glyph.clothesline: clothesline
+        case Glyph.longCapture: longCapture
+        default: nil
+        }
+    }
+
     /// 在 18 × 18 的坐标里画（y 轴向下）
     static func drawLongCapture(color: NSColor = .black) {
         color.setStroke()
@@ -43,6 +89,32 @@ enum VelosIcons {
             let handle = NSBezierPath(ovalIn: CGRect(x: center.x - 1.9, y: center.y - 1.9, width: 3.8, height: 3.8))
             handle.lineWidth = 1.5
             handle.stroke()
+        }
+    }
+}
+
+/// 图标：系统图标（SF Symbols）的名字，或 Velos 自己画的图标（名字以 velos. 开头）
+struct Glyph: View {
+    static let clothesline = "velos.clothesline"
+    static let longCapture = "velos.longCapture"
+
+    let name: String
+    /// 和系统图标的字号一样大
+    var size: CGFloat = 13
+
+    init(_ name: String, size: CGFloat = 13) {
+        self.name = name
+        self.size = size
+    }
+
+    var body: some View {
+        if let image = VelosIcons.named(name) {
+            Image(nsImage: image)
+                .renderingMode(.template)
+                .resizable()
+                .frame(width: size * 1.35, height: size * 1.35)
+        } else {
+            Image(systemName: name).font(.system(size: size, weight: .semibold))
         }
     }
 }

@@ -222,7 +222,7 @@ final class Preferences: ObservableObject {
         recordMicrophone = Self.load(.recordMicrophone, false)
         microphoneDeviceID = Self.load(.microphoneDeviceID, "")
         recordingShowsCursor = Self.load(.recordingShowsCursor, true)
-        recordingCountdown = Self.load(.recordingCountdown, false)
+        recordingCountdown = Self.load(.recordingCountdown, true)
         highlightClicks = Self.load(.highlightClicks, false)
         recordingShowThumbnail = Self.load(.recordingShowThumbnail, true)
         recordingDeleteForever = Self.load(.recordingDeleteForever, false)

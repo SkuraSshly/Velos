@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 设置窗口左侧的栏目
 enum SettingsTab: String, CaseIterable {
-    case general, screenshot, recording, translate, clothesline, hotkeys
+    case general, screenshot, recording, translate, clothesline, hotkeys, tips
 
     var title: String {
         switch self {
@@ -13,6 +13,7 @@ enum SettingsTab: String, CaseIterable {
         case .recording: "录屏"
         case .translate: "截屏翻译"
         case .hotkeys: "快捷键"
+        case .tips: "小技巧"
         }
     }
 
@@ -20,7 +21,8 @@ enum SettingsTab: String, CaseIterable {
         switch self {
         case .general: "gearshape.fill"
         case .screenshot: "camera.viewfinder"
-        case .clothesline: "photo.on.rectangle.angled"
+        case .clothesline: Glyph.clothesline
+        case .tips: "lightbulb.fill"
         case .recording: "record.circle"
         case .translate: "character.bubble.fill"
         case .hotkeys: "keyboard.fill"
@@ -33,6 +35,7 @@ enum SettingsTab: String, CaseIterable {
         case .general: .chipCocoa
         case .screenshot: .chipSky
         case .clothesline: .apricot
+        case .tips: .chipHoney
         case .recording: .coral
         case .translate: .chipSage
         case .hotkeys: .chipLavender
@@ -182,6 +185,7 @@ private struct SettingsRootView: View {
         case .recording: RecordingSettingsView()
         case .translate: TranslateSettingsView()
         case .hotkeys: HotkeySettingsView()
+        case .tips: TipsSettingsView()
         }
     }
 }
@@ -231,8 +235,7 @@ private struct SettingsSidebar: View {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(selected ? AnyShapeStyle(Color.white.opacity(0.25)) : AnyShapeStyle(tab.tint))
                 .overlay(
-                    Image(systemName: tab.symbol)
-                        .font(.system(size: 11.5, weight: .semibold))
+                    Glyph(tab.symbol, size: 11.5)
                         .foregroundStyle(.white)
                         .symbolEffect(.bounce, value: selected)
                 )

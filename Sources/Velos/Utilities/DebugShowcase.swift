@@ -420,26 +420,43 @@ enum DebugShowcase {
         }
         await capture(annotated.insetBy(dx: -40, dy: -40), on: screen, name: "2-screenshot-annotate.png", dir: dir)
 
-        // 3. 缩略图：完成截图 → 截图缩略图；再放一张录屏缩略图（封面用演示桌面里的文档窗口）
+        // 3. 晾衣绳：先挂上几张演示截图（演示桌面上几个窗口的样子），再完成刚才标注的截图：它原位「咔嚓」后飞到绳上
         let backdrop = makeBackdrop(for: screen, image: image, level: NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1))
-        session.debugComplete()
-        try? await Task.sleep(for: .milliseconds(600))
+        let backdropLevel = backdrop.level
+        backdrop.level = .normal   // 晾衣绳是浮动层级：演示桌面垫在它下面
+        let prefs = Preferences.shared
+        let savedLine = (prefs.clotheslineEnabled, prefs.screenshotShowThumbnail)
+        (prefs.clotheslineEnabled, prefs.screenshotShowThumbnail) = (true, true)
+        ScreenshotHistory.shared.clear()
+        try? await Task.sleep(for: .milliseconds(400))
         let scale = screen.backingScaleFactor
         let f = screen.frame
-        let posterRect = CGRect(x: (document.minX) * scale, y: (f.height - document.maxY) * scale,
-                                width: document.width * scale, height: document.height * scale)
-        if let poster = image.cropping(to: posterRect) {
-            ThumbnailManager.shared.debugShowRecording(poster: poster, videoSize: document.size, duration: 83, on: screen)
+        func crop(_ r: CGRect) -> CGImage? {
+            image.cropping(to: CGRect(x: r.minX * scale, y: (f.height - r.maxY) * scale, width: r.width * scale, height: r.height * scale))
+        }
+        let samples = [layout.note, document, chart.insetBy(dx: 120, dy: 90), document.insetBy(dx: 160, dy: 140)]
+        for (i, rect) in samples.enumerated() {
+            if let picture = crop(rect), let png = ImageEncoder.encode(picture, format: .png, quality: 1, scale: scale) {
+                ScreenshotHistory.write(png: png, image: picture, scale: scale, date: Date().addingTimeInterval(Double(i - 20)))
+            }
         }
         try? await Task.sleep(for: .milliseconds(500))
-        ThumbnailManager.shared.debugHoverNewest()
-        try? await Task.sleep(for: .milliseconds(300))
-        let thumbnails = ThumbnailManager.shared.debugFrames.reduce(CGRect.null) { $0.union($1) }
-        if !thumbnails.isNull {
-            await captureVerified(thumbnails.insetBy(dx: -60, dy: -50), on: screen, name: "3-thumbnails.png", dir: dir)
+        session.debugComplete()
+        try? await Task.sleep(for: .milliseconds(1700))   // 绳子放下来、截图飞上去落好
+        let line = ClotheslineController.shared
+        if let panel = line.debugPanel {
+            let cards = line.debugModel.hitRects.values.reduce(CGRect.null) { $0.union($1) }
+            let top = panel.frame.maxY
+            let area = cards.isNull ? panel.frame
+                : CGRect(x: panel.frame.minX + cards.minX - 90, y: top - cards.maxY - 30,
+                         width: cards.width + 180, height: cards.maxY + 30)
+            await captureVerified(area, on: screen, name: "3-clothesline.png", dir: dir)
         }
-        ThumbnailManager.shared.debugDismissAll()
+        line.hide()
         try? await Task.sleep(for: .milliseconds(400))
+        ScreenshotHistory.shared.clear()
+        (prefs.clotheslineEnabled, prefs.screenshotShowThumbnail) = savedLine
+        backdrop.level = backdropLevel
 
         // 4. 录屏选区：框出文档窗口，下方是录制选项条
         coordinator.beginRecording()
@@ -530,7 +547,8 @@ enum DebugShowcase {
 
         // 7. 设置窗口
         for (tab, name) in [(SettingsTab.recording, "7-settings-recording.png"), (.hotkeys, "8-settings-hotkeys.png"),
-                            (.general, "9-settings-general.png"), (.translate, "12-settings-translate.png")] {
+                            (.general, "9-settings-general.png"), (.translate, "12-settings-translate.png"),
+                            (.clothesline, "13-settings-clothesline.png"), (.tips, "14-settings-tips.png")] {
             SettingsWindowController.show(tab)
             try? await Task.sleep(for: .milliseconds(700))
             if let window = NSApp.windows.first(where: { $0.title == tab.title && $0.isVisible }) {
