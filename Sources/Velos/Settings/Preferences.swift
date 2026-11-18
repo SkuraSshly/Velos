@@ -69,7 +69,7 @@ final class Preferences: ObservableObject {
     static let shared = Preferences()
 
     private enum Key: String {
-        case autoCheckUpdates
+        case autoCheckUpdates, soundEffects
         case showMenuBarIcon, showDockIcon, screenshotDirectoryPath, recordingDirectoryPath, hasCompletedOnboarding
         case imageFormat, jpegQuality, screenshotIncludesCursor, screenshotSaveAs1x, screenshotCornerRadius
         case screenshotCopyToClipboard, screenshotSaveToFile, screenshotShowThumbnail, hideThumbnailAfterPaste
@@ -89,6 +89,8 @@ final class Preferences: ObservableObject {
     @Published var showMenuBarIcon: Bool { didSet { Self.save(showMenuBarIcon, .showMenuBarIcon) } }
     /// 自动检查更新（默认关：Velos 默认不联网；打开后每天去 GitHub 问一次最新版本号）
     @Published var autoCheckUpdates: Bool { didSet { Self.save(autoCheckUpdates, .autoCheckUpdates) } }
+    /// 截图「咔嚓」、挂上 / 取下晾衣绳、删除文件时的小声音
+    @Published var soundEffects: Bool { didSet { Self.save(soundEffects, .soundEffects) } }
     /// 在程序坞显示图标（默认不显示：Velos 是菜单栏工具）
     @Published var showDockIcon: Bool { didSet { Self.save(showDockIcon, .showDockIcon) } }
     /// 截图的保存文件夹（绝对路径），默认 ~/Pictures/ScreenShots
@@ -189,6 +191,7 @@ final class Preferences: ObservableObject {
         showMenuBarIcon = Self.load(.showMenuBarIcon, true)
         showDockIcon = Self.load(.showDockIcon, false)
         autoCheckUpdates = Self.load(.autoCheckUpdates, false)
+        soundEffects = Self.load(.soundEffects, true)
         screenshotDirectoryPath = Self.load(.screenshotDirectoryPath, SaveLocation.defaultDirectory(for: .screenshot).path)
         recordingDirectoryPath = Self.load(.recordingDirectoryPath, SaveLocation.defaultDirectory(for: .recording).path)
 
@@ -260,7 +263,7 @@ final class Preferences: ObservableObject {
         func sync<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<Preferences, T>) {
             if self[keyPath: keyPath] != stored[keyPath: keyPath] { self[keyPath: keyPath] = stored[keyPath: keyPath] }
         }
-        sync(\.showMenuBarIcon); sync(\.showDockIcon); sync(\.autoCheckUpdates); sync(\.screenshotDirectoryPath); sync(\.recordingDirectoryPath)
+        sync(\.showMenuBarIcon); sync(\.showDockIcon); sync(\.autoCheckUpdates); sync(\.soundEffects); sync(\.screenshotDirectoryPath); sync(\.recordingDirectoryPath)
         sync(\.imageFormat); sync(\.jpegQuality); sync(\.screenshotIncludesCursor); sync(\.screenshotSaveAs1x)
         sync(\.screenshotCornerRadius); sync(\.screenshotCopyToClipboard); sync(\.screenshotSaveToFile)
         sync(\.screenshotShowThumbnail); sync(\.hideThumbnailAfterPaste); sync(\.windowShadow); sync(\.windowCorners)

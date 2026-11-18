@@ -22,6 +22,9 @@ struct GeneralSettingsView: View {
                           caption: "隐藏后通过快捷键使用；再次打开 Velos 应用即可回到这里。", isOn: $prefs.showMenuBarIcon)
                 SwitchRow(icon: "dock.rectangle", tint: .chipSky, title: "在程序坞显示图标",
                           caption: "点程序坞里的图标打开设置；右键可以截图、录屏、截屏翻译。", isOn: $prefs.showDockIcon)
+                SwitchRow(icon: "speaker.wave.2", tint: .chipHoney, title: "声音",
+                          caption: "截图时小小的「咔嚓」一声；录屏倒计时每秒一声，开始、结束各一声（不会录进视频）；挂到晾衣绳上「叮」，取下「啵」，删除文件是拖到废纸篓的声音。用的都是系统自带的声音。",
+                          isOn: $prefs.soundEffects)
             }
 
             SettingsSection(title: "更新",

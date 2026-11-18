@@ -78,9 +78,11 @@ enum ScreenshotOutput {
     ///   - scale: 每点像素数
     ///   - sourceRect: 截取的位置（全局坐标），钉图时钉在原位
     ///   - forceSave: 无论设置如何都保存文件（截图界面按 ⌘S）
+    ///   - shutter: 响一声「咔嚓」（截图、长截图完成时；编辑窗口里改完再输出时不响）
     static func deliver(_ image: CGImage, scale: CGFloat, sourceRect: CGRect,
-                        forceSave: Bool = false, options: OutputOptions? = nil) {
+                        forceSave: Bool = false, shutter: Bool = true, options: OutputOptions? = nil) {
         let options = resolvedOptions(options, forceSave: forceSave)
+        if shutter { SoundEffects.play(.shutter) }
         let capture = CapturedImage(image: image, scale: scale, sourceRect: sourceRect)
 
         // 开着晾衣绳时：截图直接挂到绳上（绳子放下来一会儿），不再在角落显示缩略图；

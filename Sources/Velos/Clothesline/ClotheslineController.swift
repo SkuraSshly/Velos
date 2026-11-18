@@ -275,8 +275,9 @@ final class ClotheslineController {
         flight.fly(to: target, cornerRadius: CardFrame.radius - CardFrame.inset, tilt: tilt) { [weak self] in
             guard let self else { return }
             // 先让真卡片出现，飞的那张下一帧再收掉
-            // 真卡片在下面 0.16 秒淡入、飞的这张在上面淡出；落下的这张自己轻轻晃一下（见 PeggedView.land）
+            // 真卡片在下面 0.16 秒淡入、飞的这张在上面淡出；落下的这张自己轻轻晃一下（见 PeggedView.land），「叮」一声
             if self.model.flyingID == id { self.model.flyingID = nil }
+            SoundEffects.play(.hang)
         }
     }
 
@@ -456,7 +457,7 @@ final class ClotheslineController {
         // 绳子滑下来、卡片都挂好（约 0.6 秒）后再拿掉，你能看清是哪一张走了
         DispatchQueue.main.asyncAfter(deadline: .now() + (wasRevealed ? 0.1 : 0.7)) { [weak self] in
             self?.removingDeleted = false
-            ScreenshotHistory.shared.pruneDeletedFiles()
+            if ScreenshotHistory.shared.pruneDeletedFiles() > 0 { SoundEffects.play(.takeDown) }
         }
     }
 
@@ -491,8 +492,10 @@ final class ClotheslineController {
             if let flyingID {
                 // 等绳子滑下来、新卡片排好位置再飞
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fly(nextFlight, recordedIn: recordingRegion, to: flyingID) }
+            } else if let nextFlight {
+                nextFlight.fadeAway()   // 没有新卡片可落（不该发生）：原地淡掉
             } else {
-                nextFlight?.fadeAway()   // 没有新卡片可落（不该发生）：原地淡掉
+                SoundEffects.play(.hang)   // 不飞的（剪贴板、访达挂上来的）：挂上就「叮」一声
             }
         }
     }

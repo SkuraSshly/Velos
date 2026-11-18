@@ -125,6 +125,7 @@ final class RecordingManager: ObservableObject {
                 capturesMicrophone = recorder.settings.capturesMicrophone
                 isMicrophoneMuted = false
                 state = .recording
+                SoundEffects.play(.recordStart)
                 highlighter?.start()
                 showControlBar(for: target)
                 watchSystemEvents()
@@ -339,6 +340,7 @@ final class RecordingManager: ObservableObject {
         var savedURL: URL?
         do {
             let url = try await recorder.stop()
+            SoundEffects.play(.recordStop)
             Log.capture.notice("录屏已保存：\(url.lastPathComponent, privacy: .public)")
             savedURL = url
             #if DEBUG

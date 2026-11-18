@@ -26,7 +26,7 @@ SF Symbols 按 Apple 的许可只在 Apple 平台的 App 界面里使用。
 ### Picline
 
 - 项目：https://github.com/Xinguangcuican/Picline（Tendedero 的修改分支）
-- 用到的地方：晾衣绳的照片大小、保留数量与滚动、⇧ 连选、共享、打开、接收剪贴板图片、拖到屏幕顶部挂上、卡片的晃动和风
+- 用到的地方：晾衣绳的照片大小、保留数量与滚动、⇧ 连选、共享、打开、接收剪贴板图片、拖到屏幕顶部挂上、卡片的晃动和风、挂上 / 取下 / 删除时的声音
 - 许可证：MIT，沿用下面 Tendedero 的版权声明
 
 ### Tendedero

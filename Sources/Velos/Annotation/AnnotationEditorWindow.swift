@@ -228,7 +228,7 @@ final class AnnotationEditorWindowController: NSObject, NSWindowDelegate {
     private func finish(save: Bool) {
         guard let image = render() else { return }
         window.close()
-        ScreenshotOutput.deliver(image, scale: capture.scale, sourceRect: capture.sourceRect, forceSave: save)
+        ScreenshotOutput.deliver(image, scale: capture.scale, sourceRect: capture.sourceRect, forceSave: save, shutter: false)
     }
 
     /// 原图 + 标注，原生分辨率

@@ -78,6 +78,7 @@ final class RecordingCountdown: NSPanel {
 
     private func show(_ number: Int) {
         numberLabel.stringValue = "\(number)"
+        SoundEffects.play(.countdown)   // 3、2、1 每个数字一声
         // 每个数字淡入，节奏感更清楚
         let fade = CABasicAnimation(keyPath: "opacity")
         fade.fromValue = 0.25

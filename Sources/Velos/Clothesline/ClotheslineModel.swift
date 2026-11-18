@@ -276,6 +276,7 @@ final class ClotheslineModel: ObservableObject {
         let photos = targets(id).filter { savedIDs.contains($0.id) }
         guard !photos.isEmpty else { return }
         for photo in photos { gifTasks[photo.id]?.cancel() }
+        SoundEffects.play(.trash)
         take(photos)
         ScreenshotHistory.shared.deleteOriginals(photos.map(\.entry))
     }
@@ -309,6 +310,8 @@ final class ClotheslineModel: ObservableObject {
     /// 取下（点 ✕、拖到废纸篓、右键「取下」）：原图移到废纸篓
     func remove(_ id: URL) {
         let photos = targets(id)
+        guard !photos.isEmpty else { return }
+        SoundEffects.play(.takeDown)
         take(photos)
         // 先暂存（⌘Z 能放回来），过一阵再进废纸篓
         ClotheslineUndo.shared.takeDown(photos.map(\.entry), disposal: .trash)
@@ -326,6 +329,8 @@ final class ClotheslineModel: ObservableObject {
 
     func removeAll() {
         let all = items
+        guard !all.isEmpty else { return }
+        SoundEffects.play(.takeDown)
         take(all)
         ClotheslineUndo.shared.takeDown(all.map(\.entry), disposal: .trash)
     }
