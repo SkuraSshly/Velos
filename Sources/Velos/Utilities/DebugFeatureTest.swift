@@ -23,7 +23,7 @@ enum DebugFeatureTest {
             // 记下会被临时修改的设置
             let saved = (prefs.recordingCountdown, prefs.highlightClicks, prefs.recordingShowThumbnail, prefs.recordingShowsCursor,
                          prefs.recordSystemAudio, prefs.recordMicrophone, prefs.showMenuBarIcon, prefs.screenshotHotkey,
-                         prefs.recordingHotkey, prefs.gifFrameRate, prefs.gifMaxWidth)
+                         prefs.recordingHotkey, prefs.gifFrameRate, prefs.gifMaxWidth, prefs.clotheslineEnabled)
             Clipboard.target = NSPasteboard(name: .init("local.velos.selftest"))
             prefs.recordSystemAudio = false
             prefs.recordMicrophone = false
@@ -35,6 +35,7 @@ enum DebugFeatureTest {
             // VELOS_FEATURETEST_ONLY=hotkeys：只测快捷键（不弹出选区、不录制，不打扰正在使用电脑的人）
             if ProcessInfo.processInfo.environment["VELOS_FEATURETEST_ONLY"] != "hotkeys" {
                 testMenuBarIcon(check)
+                prefs.clotheslineEnabled = false   // 录完显示角落缩略图（开着晾衣绳时挂到绳上，没有缩略图）
                 await testCountdown(check, dir: dir)
                 await testSystemEvents(check)
                 await testClickHighlightAndGIF(check, dir: dir)
@@ -45,7 +46,7 @@ enum DebugFeatureTest {
              prefs.recordSystemAudio, prefs.recordMicrophone, prefs.showMenuBarIcon) = (saved.0, saved.1, saved.2, saved.3, saved.4, saved.5, saved.6)
             _ = CaptureCoordinator.shared.setHotkey(saved.7, for: .screenshot)
             _ = CaptureCoordinator.shared.setHotkey(saved.8, for: .recording)
-            (prefs.gifFrameRate, prefs.gifMaxWidth) = (saved.9, saved.10)
+            (prefs.gifFrameRate, prefs.gifMaxWidth, prefs.clotheslineEnabled) = (saved.9, saved.10, saved.11)
             Clipboard.target = .general
             check("测试修改的设置已全部恢复", prefs.screenshotHotkey == saved.7 && prefs.recordingHotkey == saved.8
                   && prefs.showMenuBarIcon == saved.6 && prefs.recordingCountdown == saved.0)
@@ -264,7 +265,7 @@ enum DebugFeatureTest {
         send(.flagsChanged, kVK_Shift, .command)
         send(.flagsChanged, kVK_Command, [])
         let swallowed = model.messages[.screenshot] ?? ""
-        check("只收到修饰键：说明被系统占用，并列出 ⇧⌘3 等系统快捷键", swallowed.contains("没有收到按键") && swallowed.contains("⇧⌘3（截取整个屏幕）")
+        check("只收到修饰键：说明被系统占用，并列出 ⇧⌘3 等系统快捷键", swallowed.contains("已被系统或其他 App 占用") && swallowed.contains("⇧⌘3（截取整个屏幕）")
               && field.isRecording, swallowed)
         // 布局图：提示文字较长，确认没有被截断
         try? await Task.sleep(for: .milliseconds(300))
@@ -287,7 +288,7 @@ enum DebugFeatureTest {
         send(.flagsChanged, kVK_Command, .command)
         send(.flagsChanged, kVK_Shift, [.command, .shift])
         NotificationCenter.default.post(name: NSWindow.didResignKeyNotification, object: window)
-        check("按住修饰键时窗口失去焦点：结束录制并说明原因", !field.isRecording && (model.messages[.screenshot] ?? "").contains("没有收到按键")
+        check("按住修饰键时窗口失去焦点：结束录制并说明原因", !field.isRecording && (model.messages[.screenshot] ?? "").contains("已被系统或其他 App 占用")
               && HotkeyManager.shared.debugRegisteredCount == registered)
 
         // 7. Esc 取消

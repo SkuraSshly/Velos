@@ -523,9 +523,7 @@ enum DebugUITest {
         check("截屏翻译期间 ⌥A 不打断", { coordinator.handleHotkey(.screenshot); return coordinator.debugSession === session }())
         DebugSnapshots.renderOverlay(session.debugActiveOverlay, to: dir.appendingPathComponent("11-截屏翻译选区.png"))
         _ = session.overlayKeyDown(key(kVK_ANSI_D, .option, "∂"))
-        check("⌥D 切换到全屏识别", session.mode == .fullscreen)
-        _ = session.overlayKeyDown(key(kVK_ANSI_D, .option, "∂"))
-        check("再按 ⌥D 切回框选", session.mode == .region)
+        check("界面里再按 ⌥D 还是框选（区域、全屏各用各的快捷键）", session.mode == .region && coordinator.debugSession === session)
 
         // 拖出选区，松开立即识别
         let selection = CGRect(x: g(210, 430).x, y: g(210, 430).y, width: 280, height: 140)
@@ -596,13 +594,12 @@ enum DebugUITest {
             check("识别不到文字：提示 1.5 秒后窗口自己关闭", window?.isVisible == false && controller.debugPreview == nil)
         }
 
-        // 全屏模式 + Enter
+        // 全屏：按 ⌥⇧D 直接识别整块屏幕，不用再按 Enter
         if let session = await begin() {
-            _ = session.overlayKeyDown(key(kVK_ANSI_D, .option, "∂"))
-            _ = session.overlayKeyDown(key(kVK_Return, [], "\r"))
+            _ = session.overlayKeyDown(key(kVK_ANSI_D, [.option, .shift], "Î"))
             await controller.debugWait()
             // 整屏图片很大，Vision 内部会缩小后识别，小字（尤其笔画多的汉字）可能认错；这里只检查流程和英文
-            check("全屏模式按 Enter 识别整屏", coordinator.debugSession == nil
+            check("⌥⇧D 直接识别整屏（不用按 Enter）", coordinator.debugSession == nil
                   && controller.debugPreview?.text.contains("Velos translate test") == true,
                   (controller.debugPreview?.text ?? "没有结果").debugDescription)
             check.note("全屏识别结果：\((controller.debugPreview?.text ?? "").debugDescription)")
@@ -2115,7 +2112,12 @@ enum DebugRecordingTest {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(1))
             let check = DebugUITest.Checks()
+            // 不受这台电脑上的设置影响：不倒计时、不挂晾衣绳（录完显示角落缩略图），测完改回去
+            let prefs = Preferences.shared
+            let saved = (prefs.recordingCountdown, prefs.clotheslineEnabled)
+            (prefs.recordingCountdown, prefs.clotheslineEnabled) = (false, false)
             await run(check: check)
+            (prefs.recordingCountdown, prefs.clotheslineEnabled) = saved
             try? check.lines.joined(separator: "\n").write(to: dir.appendingPathComponent("result.txt"), atomically: true, encoding: .utf8)
             Log.capture.notice("录屏自测完成：\(check.lines.filter { $0.hasPrefix("✓") }.count)/\(check.lines.count) 通过")
             DebugUITest.quitAfterTest()
