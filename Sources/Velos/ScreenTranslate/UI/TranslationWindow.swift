@@ -6,7 +6,8 @@ import SwiftUI
 /// 截屏翻译的结果窗口：放在选区旁边（优先右侧，其次下方、左侧、上方），不挡住选区、不超出屏幕。
 ///
 /// - 用带标题栏（但隐藏）的面板：系统的「下载语言包」提示需要能挂在窗口上
-/// - 不激活 Velos 也能成为焦点窗口：可以直接编辑原文、按 Esc
+/// - 出现时成为焦点窗口（Velos 切到前台，鼠标不动）：看起来是选中的，可以直接编辑原文、按快捷键、按 Esc；
+///   关掉后把焦点还给截屏翻译前正在用的 App（已经点到别的 App 上了就不管）
 /// - 内容变高时（译文出来、原文变长）保持顶边不动，向下长，不跳动
 /// - 没钉住：点窗口外面或按 Esc 关闭（下载提示显示时不关闭）
 /// - 钉住（图钉按钮或 ⌘P）：置顶，点别处不关闭，可以拖到任何地方、拖边缘调整大小；关闭按钮或 Esc 关闭。
@@ -17,6 +18,8 @@ final class TranslationWindow: NSObject, NSWindowDelegate {
     var onClose: (() -> Void)?
     /// 钉住 / 取消钉住时通知（截屏翻译的总调度据此管理多个窗口）
     var onPinChange: ((Bool) -> Void)?
+    /// 关掉后把焦点还给谁
+    var focusToReturn: FrontmostAppGuard?
 
     let model: TranslationModel
     private let window: KeyablePanel
@@ -77,6 +80,7 @@ final class TranslationWindow: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        NSApp.activate()
         window.orderFrontRegardless()
         window.makeKey()
         Log.capture.notice("截屏翻译：结果窗口显示 \(Int(self.window.frame.width))×\(Int(self.window.frame.height))，译文\(self.model.status == .done ? "已就绪" : "还在翻译", privacy: .public)")
@@ -252,7 +256,8 @@ final class TranslationWindow: NSObject, NSWindowDelegate {
         close(reason: reason)
     }
 
-    func close(reason: String = "新的识别结果") {
+    /// - Parameter returnsFocus: 关掉后把焦点还给原来的 App（换成另一个结果窗口时不还：新窗口要接着拿焦点）
+    func close(reason: String = "新的识别结果", returnsFocus: Bool = true) {
         guard !isClosed else { return }
         isClosed = true
         Log.capture.notice("截屏翻译：结果窗口关闭（\(reason, privacy: .public)）")
@@ -262,6 +267,7 @@ final class TranslationWindow: NSObject, NSWindowDelegate {
         Speaker.shared.stop()
         window.orderOut(nil)
         window.contentViewController = nil
+        if returnsFocus { focusToReturn?.restorePreviousApp() }
         onClose?()
     }
 

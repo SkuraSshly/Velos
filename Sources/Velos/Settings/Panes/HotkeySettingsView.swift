@@ -1,37 +1,43 @@
 import SwiftUI
 import Carbon.HIToolbox
 
-/// 快捷键：点击录制框后按下新的组合键；设置前检查冲突，有冲突时保留原来的快捷键并说明原因
+/// 快捷键：点击录制框后按下新的组合键；设置前检查冲突，有冲突时保留原来的快捷键并在那一行显示原因
 struct HotkeySettingsView: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var model = HotkeySettingsModel.shared
 
     var body: some View {
         SettingsPane {
-            SettingsSection(title: "全局快捷键",
-                            footer: "点击快捷键框，然后按下新的组合键；按 Esc 取消。需要包含 ⌘、⌥ 或 ⌃ 之一（F1–F20 可以单独使用）。已被 macOS 占用的组合键（如 ⇧⌘3、⌘空格）按下时由系统直接处理，Velos 收不到，不能设置。") {
-                row(.screenshot, icon: "camera.viewfinder", tint: .chipSky, hotkey: prefs.screenshotHotkey,
-                    defaultHotkey: .defaultScreenshot, isFirst: true)
-                row(.recording, icon: "record.circle", tint: .coral, hotkey: prefs.recordingHotkey,
-                    defaultHotkey: .defaultRecording)
-                row(.translate, icon: "character.bubble", tint: .chipSage, hotkey: prefs.translateHotkey,
-                    defaultHotkey: .defaultTranslate)
-                row(.clothesline, icon: Glyph.clothesline, tint: .chipHoney, hotkey: prefs.clotheslineHotkey,
-                    defaultHotkey: .defaultClothesline)
+            SettingsSection(title: "截图") {
+                row(.screenshot, prefs.screenshotHotkey)
+                row(.screenshotFull, prefs.screenshotFullHotkey)
+            }
+            SettingsSection(title: "录屏") {
+                row(.recording, prefs.recordingHotkey)
+                row(.recordingFull, prefs.recordingFullHotkey)
+            }
+            SettingsSection(title: "截屏翻译") {
+                row(.translate, prefs.translateHotkey)
+                row(.translateFull, prefs.translateFullHotkey)
+            }
+            SettingsSection(title: "晾衣绳") {
+                row(.clothesline, prefs.clotheslineHotkey)
             }
         }
         .onDisappear { model.messages.removeAll() }
     }
 
-    @ViewBuilder
-    private func row(_ action: HotkeyManager.Action, icon: String, tint: Color, hotkey: Hotkey, defaultHotkey: Hotkey,
-                     isFirst: Bool = false) -> some View {
-        SettingsRow(icon: icon, tint: tint, title: action.title, caption: model.messages[action].map { "⚠️ " + $0 } ?? action.usage,
-                    isFirst: isFirst) {
+    private func rowTitle(_ action: HotkeyManager.Action) -> String {
+        if action == .clothesline { return "放下 / 收起" }
+        return action.mode == .fullscreen ? "全屏" : "区域"
+    }
+
+    private func row(_ action: HotkeyManager.Action, _ hotkey: Hotkey) -> some View {
+        SettingsRow(title: rowTitle(action), caption: model.messages[action].map { "⚠️ " + $0 }) {
             HStack(spacing: 8) {
-                if hotkey != defaultHotkey {
-                    Button("恢复默认") { model.record(defaultHotkey, for: action) }
-                        .buttonStyle(WarmButtonStyle())
+                if hotkey != action.defaultHotkey {
+                    Button("恢复默认") { model.record(action.defaultHotkey, for: action) }
+                        .buttonStyle(CapsuleButtonStyle())
                 }
                 HotkeyRecorder(action: action, hotkey: hotkey)
                     .frame(width: 150, height: 28)
@@ -55,10 +61,10 @@ final class HotkeySettingsModel: ObservableObject {
     func swallowed(modifiers: NSEvent.ModifierFlags, for action: HotkeyManager.Action) {
         let symbols = Hotkey.modifierSymbols(modifiers)
         let taken = HotkeyConflicts.systemShortcuts(with: modifiers)
-        var text = "没有收到按键：\(symbols) 加某个键的组合如果已被 macOS 系统快捷键（或其他程序）占用，按下时会被系统直接处理（例如 ⇧⌘3 会直接截屏），Velos 收不到，所以无法设置。"
+        var text = "\(symbols) 加这个键已被系统或其他 App 占用。"
         if !taken.isEmpty {
             let list = taken.prefix(6).map { item in item.name.map { "\(item.hotkey.displayString)（\($0)）" } ?? item.hotkey.displayString }
-            text += "系统已占用的 \(symbols) 组合：" + list.joined(separator: "、") + (taken.count > 6 ? " 等" : "") + "。"
+            text += "已占用：" + list.joined(separator: "、") + (taken.count > 6 ? " 等" : "") + "。"
         }
         messages[action] = text
     }
@@ -224,13 +230,13 @@ final class HotkeyRecorderField: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let palette = WarmPalette(for: self)
+        let palette = GlassPalette(for: self)
         let rect = bounds.insetBy(dx: 1, dy: 1)
         let shape = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
-        (isRecording ? WarmPalette.apricot.withAlphaComponent(0.14) : palette.hover).setFill()
+        (isRecording ? palette.pressed : palette.hover).setFill()
         shape.fill()
         shape.lineWidth = isRecording ? 1.5 : 0.5
-        (isRecording ? WarmPalette.apricot : palette.hairline).setStroke()
+        (isRecording ? palette.ink.withAlphaComponent(0.5) : palette.hairline).setStroke()
         shape.stroke()
 
         if isRecording {
@@ -253,7 +259,7 @@ final class HotkeyRecorderField: NSView {
     }
 
     /// 每个键画成一个小键帽：圆角方块 + 底部一道厚边，像真的键盘按键
-    private func drawKeycaps(_ keys: [String], palette: WarmPalette, live: Bool) {
+    private func drawKeycaps(_ keys: [String], palette: GlassPalette, live: Bool) {
         let font = roundedFont(ofSize: 12, weight: .semibold)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: palette.ink]
         let capHeight: CGFloat = 18, gap: CGFloat = 4
@@ -266,7 +272,7 @@ final class HotkeyRecorderField: NSView {
                 // 底部厚边
                 palette.hairline.withAlphaComponent(palette.isDark ? 0.5 : 0.35).setFill()
                 NSBezierPath(roundedRect: cap.offsetBy(dx: 0, dy: -1.5), xRadius: 4.5, yRadius: 4.5).fill()
-                (palette.isDark ? NSColor(srgbRed: 0.42, green: 0.35, blue: 0.30, alpha: 1) : NSColor.white).setFill()
+                (palette.isDark ? NSColor(white: 0.3, alpha: 1) : NSColor.white).setFill()
                 NSBezierPath(roundedRect: cap, xRadius: 4.5, yRadius: 4.5).fill()
             }
             let size = (key as NSString).size(withAttributes: attributes)
@@ -280,16 +286,4 @@ final class HotkeyRecorderField: NSView {
     #if DEBUG
     func debugPress(_ event: NSEvent) { keyDown(with: event) }
     #endif
-}
-
-extension HotkeyManager.Action {
-    /// 快捷键设置里的一句话说明
-    var usage: String {
-        switch self {
-        case .screenshot: "冻结屏幕后框选或单击窗口，可以标注"
-        case .recording: "区域或全屏录制；录制中再按一次停止"
-        case .translate: "框选文字或单击窗口，松开即识别并翻译"
-        case .clothesline: "放下 / 收起屏幕顶上挂着最近截图的晾衣绳"
-        }
-    }
 }

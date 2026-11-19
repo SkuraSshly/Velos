@@ -1,6 +1,6 @@
 import AppKit
 
-/// 设置窗口（和权限引导）在单独的进程 VelosSettings 里显示，和文字识别的 VelosOCR 一样各管一摊：
+/// 设置窗口在单独的进程 VelosSettings 里显示，和文字识别的 VelosOCR 一样各管一摊：
 /// - Velos：常驻，只做一直要做的事（快捷键、菜单栏图标、截图、录屏），保持十几 MB
 /// - VelosOCR：系统管理的后台服务，识别完 30 秒后退出
 /// - VelosSettings：打开设置时由 Velos 作为子进程启动，关掉窗口 30 秒后自己退出
@@ -14,31 +14,17 @@ import AppKit
 ///
 /// 两个进程之间用分布式通知说话（只在本机、本用户之间，不联网；不传 Key 之类的机密）：
 /// - VelosSettings → Velos：设置改了、录快捷键期间暂停 / 恢复全局快捷键、打开 / 关闭登录时启动、重新启动 Velos
-/// - Velos → VelosSettings：显示设置窗口（切到某一页）或权限引导、Velos 里改了设置
+/// - Velos → VelosSettings：显示设置窗口（切到某一栏）、Velos 里改了设置
 enum SettingsProcess {
-    /// 启动参数：`--velos-settings=<栏目或 onboarding>`、`--velos-main-pid=<Velos 的进程号>`
+    /// 启动参数：`--velos-settings=<栏目>`、`--velos-main-pid=<Velos 的进程号>`
     static let modeArgument = "--velos-settings="
     static let mainPIDArgument = "--velos-main-pid="
 
     /// 这个进程是不是 VelosSettings
     static var isSettingsProcess: Bool { AppIdentity.isSettingsApp }
 
-    /// VelosSettings 要显示的内容
-    enum Page: Equatable {
-        case settings(SettingsTab?)
-        case onboarding
-
-        var argumentValue: String {
-            switch self {
-            case .settings(let tab): tab?.rawValue ?? "default"
-            case .onboarding: "onboarding"
-            }
-        }
-
-        init(argumentValue: String) {
-            self = argumentValue == "onboarding" ? .onboarding : .settings(SettingsTab(rawValue: argumentValue))
-        }
-    }
+    /// 栏目在启动参数、通知里的写法：栏目名；nil（停在当前 / 默认的栏目）写作 default
+    static func argument(for tab: SettingsTab?) -> String { tab?.rawValue ?? "default" }
 
     /// 两个进程之间的消息（名字带上 Velos 的标识：调试版和正式版同时运行时互不干扰）
     enum Message: String {
@@ -78,10 +64,10 @@ enum SettingsProcess {
 
     // MARK: - VelosSettings 这一边
 
-    /// 启动时要显示的页面（没有参数时显示设置的第一页）
-    static var initialPage: Page {
+    /// 启动时要显示的栏目（没有参数时显示设置的第一栏）
+    static var initialTab: SettingsTab? {
         let value = CommandLine.arguments.first { $0.hasPrefix(modeArgument) }?.dropFirst(modeArgument.count)
-        return Page(argumentValue: value.map(String.init) ?? "default")
+        return value.flatMap { SettingsTab(rawValue: String($0)) }
     }
 
     /// 启动 VelosSettings 的那个 Velos 的进程号（它退出时 VelosSettings 跟着退出）
@@ -163,14 +149,15 @@ final class DistributedObserver: NSObject {
 
 // MARK: - Velos 这一边：打开设置
 
-/// Velos 里所有「打开设置 / 权限引导」都走这里：启动 VelosSettings，已经开着的就叫它显示
+/// Velos 里所有「打开设置」都走这里：启动 VelosSettings，已经开着的就叫它显示
 @MainActor
 enum SettingsLauncher {
     private static var process: Process?
     private static var observers: [DistributedObserver] = []
 
-    static func open(_ tab: SettingsTab? = nil) { show(.settings(tab)) }
-    static func openOnboarding() { show(.onboarding) }
+    static func open(_ tab: SettingsTab? = nil) { show(tab) }
+    /// 缺权限时：打开「通用」，权限的授权按钮在那一页最下面
+    static func openPermissions() { show(.general) }
 
     /// VelosSettings 开着
     static var isProcessRunning: Bool { process?.isRunning ?? false }
@@ -185,29 +172,26 @@ enum SettingsLauncher {
     }
 
     /// 在 Velos 进程里直接显示（VelosSettings 自己、找不到或启动不了 VelosSettings 时、调试版自测时）
-    private static func showInProcess(_ page: SettingsProcess.Page) {
-        switch page {
-        case .settings(let tab): SettingsWindowController.show(tab)
-        case .onboarding: OnboardingWindowController.show(over: SettingsWindowController.currentWindow)
-        }
+    private static func showInProcess(_ tab: SettingsTab?) {
+        SettingsWindowController.show(tab)
     }
 
-    private static func show(_ page: SettingsProcess.Page) {
-        if SettingsProcess.isSettingsProcess || runsInProcess { return showInProcess(page) }
+    private static func show(_ tab: SettingsTab?) {
+        if SettingsProcess.isSettingsProcess || runsInProcess { return showInProcess(tab) }
         listen()
         // 让 VelosSettings 能切到前台（macOS 的激活是协作式的：前台的 App 要让出来）
         NSApp.yieldActivation(toApplicationWithBundleIdentifier: AppIdentity.settingsBundleID)
         if isProcessRunning {
-            SettingsProcess.post(.show, userInfo: ["page": page.argumentValue])
+            SettingsProcess.post(.show, userInfo: ["page": SettingsProcess.argument(for: tab)])
             return
         }
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
             Log.capture.error("找不到 VelosSettings，设置窗口改为在 Velos 里打开")
-            return showInProcess(page)
+            return showInProcess(tab)
         }
         let child = Process()
         child.executableURL = executableURL
-        child.arguments = [SettingsProcess.modeArgument + page.argumentValue,
+        child.arguments = [SettingsProcess.modeArgument + SettingsProcess.argument(for: tab),
                            SettingsProcess.mainPIDArgument + String(ProcessInfo.processInfo.processIdentifier)]
         // 调试用的环境变量（自测开关）不带给 VelosSettings
         child.environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("VELOS_") }
@@ -221,7 +205,7 @@ enum SettingsLauncher {
         } catch {
             // 启动不了（极少见）：退回到在 Velos 里直接显示
             Log.capture.error("VelosSettings 启动失败：\(error.localizedDescription, privacy: .public)，改为在 Velos 里打开")
-            showInProcess(page)
+            showInProcess(tab)
         }
     }
 
@@ -307,7 +291,7 @@ final class SettingsProcessController {
         #endif
         observers.append(DistributedObserver(SettingsProcess.Message.show.name) { [weak self] notification in
             let value = notification.userInfo?["page"] as? String ?? "default"
-            self?.show(SettingsProcess.Page(argumentValue: value))
+            self?.show(SettingsTab(rawValue: value))
         })
         // 窗口关了：看看还有没有别的窗口开着，都关了就开始计时
         tokens.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: nil,
@@ -327,16 +311,13 @@ final class SettingsProcessController {
             guard main.isTerminated else { return }
             DispatchQueue.main.async { NSApp.terminate(nil) }
         }
-        show(SettingsProcess.initialPage)
+        show(SettingsProcess.initialTab)
     }
 
-    private func show(_ page: SettingsProcess.Page) {
+    private func show(_ tab: SettingsTab?) {
         quitTimer?.invalidate()
         quitTimer = nil
-        switch page {
-        case .settings(let tab): SettingsWindowController.show(tab)
-        case .onboarding: OnboardingWindowController.show(over: SettingsWindowController.currentWindow)
-        }
+        SettingsWindowController.show(tab)
     }
 
     private func windowWillClose(_ closing: NSWindow?) {

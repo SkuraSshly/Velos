@@ -10,7 +10,7 @@ struct RecordingTarget {
     let scale: CGFloat
 }
 
-/// 录屏选区：交互与截图一致（窗口识别、拖拽、控制点、方向键微调、⌥S 切换区域 / 全屏），区别是：
+/// 录屏选区：交互与截图一致（窗口识别、拖拽、控制点、方向键微调、⌥S 区域、⌥⇧S 全屏），区别是：
 /// - 不冻屏，选区阶段下面是实时画面
 /// - 选区用红色，以区别于截图
 /// - 选区旁是录制选项条（系统声音、麦克风、指针、帧率）
@@ -20,8 +20,10 @@ final class RecordingSelectionSession: OverlayEventHandler {
     var onConfirm: ((RecordingTarget) -> Void)?
     var onFinish: (() -> Void)?
 
+    /// 区域的快捷键（⌥S）和全屏的快捷键（⌥⇧S）：界面里按哪个就切到哪种
     private let hotkey: Hotkey
-    private(set) var mode: CaptureMode = .region
+    private let fullHotkey: Hotkey
+    private(set) var mode: CaptureMode
 
     private var overlays: [CGDirectDisplayID: OverlayWindow] = [:]
     private var screens: [CGDirectDisplayID: NSScreen] = [:]
@@ -29,7 +31,6 @@ final class RecordingSelectionSession: OverlayEventHandler {
     private var mousePoint = NSEvent.mouseLocation
 
     private let selector = RegionSelector()
-    private let hint = HintBar(blending: .behindWindow)   // 下面是实时画面
     private let optionsBar = RecordingOptionsBar()
 
     private(set) var isFinished = false
@@ -37,8 +38,10 @@ final class RecordingSelectionSession: OverlayEventHandler {
     /// 开始前正在使用的 App、切到前台、被抢走前台时取消（开始时创建）
     private var frontmost: FrontmostAppGuard?
 
-    init(hotkey: Hotkey) {
+    init(hotkey: Hotkey, fullHotkey: Hotkey, mode: CaptureMode = .region) {
         self.hotkey = hotkey
+        self.fullHotkey = fullHotkey
+        self.mode = mode
         optionsBar.onStart = { [weak self] in self?.confirm() }
         optionsBar.onChange = { [weak self] in self?.refresh() }
     }
@@ -69,7 +72,8 @@ final class RecordingSelectionSession: OverlayEventHandler {
         refresh()
         for (id, window) in overlays where id != activeDisplayID { window.orderFrontRegardless() }
         overlays[activeDisplayID]?.makeKeyAndOrderFront(nil)
-        HotkeyManager.shared.suspend(.recording)   // 之后的 ⌥S 由遮罩窗口自己处理
+        HotkeyManager.shared.suspend(.recording)   // 之后的 ⌥S / ⌥⇧S 由遮罩窗口自己处理
+        HotkeyManager.shared.suspend(.recordingFull)
         activateForCursor()
         Log.capture.notice("录屏选区已出现")
     }
@@ -95,7 +99,6 @@ final class RecordingSelectionSession: OverlayEventHandler {
         for (center, token) in observers { center.removeObserver(token) }
         observers.removeAll()
         frontmost?.stopWatching()
-        hint.remove()
         optionsBar.removeFromSuperview()
         for window in overlays.values {
             window.handler = nil
@@ -106,6 +109,7 @@ final class RecordingSelectionSession: OverlayEventHandler {
         overlays.removeAll()
         NSCursor.arrow.set()
         HotkeyManager.shared.resume(.recording)
+        HotkeyManager.shared.resume(.recordingFull)
         frontmost?.restorePreviousApp()
         onFinish?()
     }
@@ -135,9 +139,10 @@ final class RecordingSelectionSession: OverlayEventHandler {
 
     // MARK: - 模式切换与确认
 
-    func toggleMode() {
-        guard !isFinished else { return }
-        mode.toggle()
+    /// 切到区域或全屏（界面里按区域 / 全屏的快捷键）
+    func setMode(_ newMode: CaptureMode) {
+        guard !isFinished, newMode != mode else { return }
+        mode = newMode
         selector.cancelInteraction()
         Log.capture.notice("录屏切换到\(self.mode == .region ? "区域" : "全屏", privacy: .public)模式")
         refresh()
@@ -184,7 +189,6 @@ final class RecordingSelectionSession: OverlayEventHandler {
             view.apply(state)
         }
         placeOptionsBar()
-        placeHint()
     }
 
     /// 选项条：区域模式在选区下方右对齐（放不下放上方，再不行放选区内）；全屏模式在屏幕底部中央
@@ -217,25 +221,6 @@ final class RecordingSelectionSession: OverlayEventHandler {
         optionsBar.setFrameOrigin(CGPoint(x: frame.minX.rounded(), y: frame.minY.rounded()))
     }
 
-    private func placeHint() {
-        guard let view = overlays[activeDisplayID]?.contentView, let screen = screens[activeDisplayID] else { return }
-        let key = hotkey.displayString
-        switch mode {
-        case .region:
-            hint.setContent(title: "区域录屏", items: ["\(key) 切换全屏", "Enter 开始", "Esc 取消"])
-        case .fullscreen:
-            hint.setContent(title: "全屏录屏", items: ["\(key) 切换区域", "Enter 开始", "Esc 取消"])
-        }
-        let origin = screen.frame.origin
-        var avoid: [CGRect] = []
-        if mode == .region, let selection = selector.selection, selector.selectionDisplayID == activeDisplayID {
-            avoid.append(selection.offsetBy(dx: -origin.x, dy: -origin.y))
-        }
-        if optionsBar.superview === view { avoid.append(optionsBar.frame) }
-        avoid.append(CGRect(x: mousePoint.x - origin.x - 16, y: mousePoint.y - origin.y - 16, width: 32, height: 32))
-        hint.place(in: view, screen: screen, avoiding: avoid)
-    }
-
     private func track(_ point: NSPoint) {
         mousePoint = point
         if let id = NSScreen.screen(containing: point)?.displayID, screens[id] != nil {
@@ -251,7 +236,11 @@ final class RecordingSelectionSession: OverlayEventHandler {
         // 按住不放的自动重复：除方向键外一律忽略
         if event.isARepeat && !arrowKeys.contains(Int(event.keyCode)) { return true }
         if hotkey.matches(event) {
-            toggleMode()
+            setMode(.region)
+            return true
+        }
+        if fullHotkey.matches(event) {
+            setMode(.fullscreen)
             return true
         }
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
@@ -339,7 +328,6 @@ final class RecordingSelectionSession: OverlayEventHandler {
     #if DEBUG
     var debugSelector: RegionSelector { selector }
     var debugOptionsBar: RecordingOptionsBar { optionsBar }
-    var debugHintText: String { hint.view.debugText }
     var debugOverlayCount: Int { overlays.count }
     #endif
 }

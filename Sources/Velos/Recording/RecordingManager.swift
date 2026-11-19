@@ -381,7 +381,7 @@ final class RecordingManager: ObservableObject {
     private func showError(_ title: String, _ error: Error) {
         PermissionManager.shared.refresh()
         if !PermissionManager.shared.screenRecordingGranted {
-            SettingsLauncher.openOnboarding()
+            SettingsLauncher.openPermissions()
             return
         }
         let alert = NSAlert()

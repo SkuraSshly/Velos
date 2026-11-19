@@ -15,6 +15,10 @@ final class HotkeyManager {
         case translate = 3
         /// 放下 / 收起晾衣绳
         case clothesline = 6
+        /// 直接全屏：全屏截图、全屏录屏、全屏翻译
+        case screenshotFull = 7
+        case recordingFull = 8
+        case translateFull = 9
     }
 
     /// 快捷键「真正按下」时回调（按住不放产生的重复事件已被过滤）
@@ -195,6 +199,9 @@ extension HotkeyManager.Action {
         case .recording: "录屏"
         case .translate: "截屏翻译"
         case .clothesline: "晾衣绳"
+        case .screenshotFull: "全屏截图"
+        case .recordingFull: "全屏录屏"
+        case .translateFull: "全屏翻译"
         }
     }
 
@@ -204,8 +211,34 @@ extension HotkeyManager.Action {
         case .recording: .defaultRecording
         case .translate: .defaultTranslate
         case .clothesline: .defaultClothesline
+        case .screenshotFull: .defaultScreenshotFull
+        case .recordingFull: .defaultRecordingFull
+        case .translateFull: .defaultTranslateFull
         }
     }
+
+    /// 全屏的动作对应的普通动作（全屏截图 → 截图）；其他的就是自己
+    var base: HotkeyManager.Action {
+        switch self {
+        case .screenshotFull: .screenshot
+        case .recordingFull: .recording
+        case .translateFull: .translate
+        default: self
+        }
+    }
+
+    /// 普通动作对应的全屏动作（截图 → 全屏截图）；没有的是 nil
+    var fullScreen: HotkeyManager.Action? {
+        switch self {
+        case .screenshot: .screenshotFull
+        case .recording: .recordingFull
+        case .translate: .translateFull
+        default: nil
+        }
+    }
+
+    /// 这个快捷键要的是全屏还是区域
+    var mode: CaptureMode { self == base ? .region : .fullscreen }
 
     /// 这个动作的快捷键存在设置的哪一项
     @MainActor var preferenceKeyPath: ReferenceWritableKeyPath<Preferences, Hotkey> {
@@ -214,6 +247,9 @@ extension HotkeyManager.Action {
         case .recording: \.recordingHotkey
         case .translate: \.translateHotkey
         case .clothesline: \.clotheslineHotkey
+        case .screenshotFull: \.screenshotFullHotkey
+        case .recordingFull: \.recordingFullHotkey
+        case .translateFull: \.translateFullHotkey
         }
     }
 }

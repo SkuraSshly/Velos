@@ -109,15 +109,17 @@ final class ScreenTranslateController {
 
     /// 松开鼠标后立即在选区旁边弹出结果窗口（与 Easydict 一样先出窗口），识别结果和译文随后填进去；
     /// 识别不到文字时窗口里显示「未识别到文字」，1.5 秒后自己关闭。
-    func recognize(_ crop: FrozenDisplay.Crop) {
+    /// - Parameter focus: 结果窗口关掉后把焦点还给谁（截屏翻译开始前正在用的 App）
+    func recognize(_ crop: FrozenDisplay.Crop, returningFocusTo focus: FrontmostAppGuard? = nil) {
         task?.cancel()
         hud?.close()
-        preview?.close()
+        preview?.close(returnsFocus: false)   // 新窗口马上接过焦点，不用先还回去
         let started = ContinuousClock.now
         let pointSize = CGSize(width: CGFloat(crop.image.width) / crop.scale, height: CGFloat(crop.image.height) / crop.scale)
 
         let model = TranslationModel(recognizing: ())
         let window = TranslationWindow(model: model, near: crop.sourceRect)
+        window.focusToReturn = focus
         window.onClose = { [weak self, weak window] in
             guard let self, let window else { return }
             if self.preview === window { self.preview = nil }
@@ -132,7 +134,7 @@ final class ScreenTranslateController {
             } else {
                 // 取消钉住：它变回普通窗口；原来那个没钉住的窗口关掉（同一时间只留一个）
                 self.pinned.removeAll { $0 === window }
-                if let old = self.preview, old !== window { old.close(reason: "另一个窗口取消了钉住") }
+                if let old = self.preview, old !== window { old.close(reason: "另一个窗口取消了钉住", returnsFocus: false) }
                 self.preview = window
             }
         }

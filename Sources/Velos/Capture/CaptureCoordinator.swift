@@ -76,29 +76,30 @@ final class CaptureCoordinator {
             if action == .recording { stopRecordingIfActive() }
             return
         }
-        switch action {
-        case .clothesline:
-            break
+        // ⌥A / ⌥S / ⌥D 是区域，⌥⇧A / ⌥⇧S / ⌥⇧D 直接全屏
+        switch action.base {
         case .screenshot, .translate:
             let purpose = ScreenshotSession.Purpose(action)
             if let session = screenshotSession {
-                // 界面还没来得及出现时（正在冻屏），全局快捷键仍然有效，由这里转给会话切换模式；
+                // 界面还没来得及出现时（正在冻屏），全局快捷键仍然有效，由这里转给会话切到对应的模式；
                 // 截图界面里按截屏翻译的快捷键（或反过来）不做任何事
-                if session.hotkeyAction == action { session.toggleMode() }
+                if session.hotkeyAction == action.base { session.setMode(action.mode) }
             } else if recordingSession == nil {
                 // 录屏选区进行中不截图；录制过程中可以截图、截屏翻译
-                beginScreenshot(purpose: purpose)
+                beginScreenshot(purpose: purpose, mode: action.mode)
             }
         case .recording:
             if let session = recordingSession {
-                session.toggleMode()
+                session.setMode(action.mode)
             } else if screenshotSession == nil {
                 if RecordingManager.shared.state == .idle {
-                    beginRecording()
+                    beginRecording(mode: action.mode)
                 } else {
-                    stopRecordingIfActive()
+                    stopRecordingIfActive()   // 录制中按哪个录屏快捷键都是停止
                 }
             }
+        default:
+            break
         }
     }
 
@@ -112,13 +113,15 @@ final class CaptureCoordinator {
     }
 
     /// 开始截图或截屏翻译（共用同一套冻屏、选区界面）。从菜单启动时传入一点延迟，等菜单淡出后再冻屏，避免把菜单截进去
-    func beginScreenshot(delay: Duration = .zero, purpose: ScreenshotSession.Purpose = .screenshot) {
+    /// - Parameter mode: 一开始是区域还是全屏（⌥⇧A / ⌥⇧D 直接全屏）
+    func beginScreenshot(delay: Duration = .zero, purpose: ScreenshotSession.Purpose = .screenshot, mode: CaptureMode = .region) {
         guard screenshotSession == nil, recordingSession == nil else { return }
         guard PermissionManager.shared.ensureScreenRecording() else { return }
 
         let action = purpose.hotkeyAction
-        let session = ScreenshotSession(hotkey: hotkey(for: action), purpose: purpose)
-        session.onTranslate = { crop in ScreenTranslateController.shared.recognize(crop) }
+        let session = ScreenshotSession(hotkey: hotkey(for: action), fullHotkey: hotkey(for: action.fullScreen ?? action),
+                                        purpose: purpose, mode: mode)
+        session.onTranslate = { crop, focus in ScreenTranslateController.shared.recognize(crop, returningFocusTo: focus) }
         session.onLongCapture = { [weak self] region, screen in self?.beginLongCapture(region: region, screen: screen) }
         if purpose != .screenshot { ScreenTranslateController.shared.warmUp() }
         session.onFinish = { [weak self] in
@@ -138,11 +141,12 @@ final class CaptureCoordinator {
     }
 
     /// 开始录屏选区（录制中则不处理）
-    func beginRecording(delay: Duration = .zero) {
+    /// - Parameter mode: 一开始是区域还是全屏（⌥⇧S 直接全屏）
+    func beginRecording(delay: Duration = .zero, mode: CaptureMode = .region) {
         guard screenshotSession == nil, recordingSession == nil, RecordingManager.shared.state == .idle else { return }
         guard PermissionManager.shared.ensureScreenRecording() else { return }
 
-        let session = RecordingSelectionSession(hotkey: recordingHotkey)
+        let session = RecordingSelectionSession(hotkey: recordingHotkey, fullHotkey: hotkey(for: .recordingFull), mode: mode)
         session.onConfirm = { [weak session] target in
             guard let session else { return }
             RecordingManager.shared.start(target, from: session)

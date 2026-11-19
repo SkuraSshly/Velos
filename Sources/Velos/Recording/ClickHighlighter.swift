@@ -1,6 +1,6 @@
 import AppKit
 
-/// 录制时高亮鼠标点击：在点击位置画一个杏色圆圈，松开时向外扩散并淡出（右键是珊瑚色）。
+/// 录制时高亮鼠标点击：在点击位置画一个杏色圆圈，松开时向外扩散并淡出（右键是暖色粉红）。
 ///
 /// 做法：录制所在屏幕上盖一层完全透明、鼠标可以穿透的窗口，圆圈画在这层窗口里。
 /// Velos 的窗口默认都不录进视频，这层窗口是唯一的例外（创建录制范围时明确把它加进去），
@@ -65,7 +65,7 @@ final class ClickHighlighter {
         case .leftMouseDown, .rightMouseDown:
             guard screenFrame.contains(location) else { return }
             pressed[button]?.removeFromSuperlayer()
-            pressed[button] = press(at: point, color: button == 0 ? WarmPalette.apricot : WarmPalette.coral)
+            pressed[button] = press(at: point, color: button == 0 ? GlassPalette.accent : GlassPalette.hot)
         case .leftMouseDragged, .rightMouseDragged:
             guard let layer = pressed[button] else { return }
             CATransaction.begin()

@@ -10,7 +10,7 @@ import ScreenCaptureKit
 /// 3. 冻屏完成后再把 Velos 切到前台：macOS 只允许前台 App 改变鼠标指针（十字准星），
 ///    此时底图已经截好，当前 App 失去焦点（比如关掉弹出菜单）不会影响截图内容
 /// 4. 区域模式：悬停识别窗口、拖拽 / 单击选取、控制点调整、方向键微调（见 RegionSelector），旁边有放大镜
-/// 5. ⌥A（真正的按下，忽略按住不放的重复）在「区域 ↔ 全屏」之间切换，次数不限，选区保留
+/// 5. ⌥A 切到区域、⌥⇧A 切到全屏（真正的按下，忽略按住不放的重复），次数不限，选区保留；⌥⇧A 也能直接以全屏打开
 /// 6. Enter 从冻结的底图裁剪出结果；Esc 随时取消；结束后把焦点还给原来的 App
 ///
 /// 截屏翻译（⌥D）也用这一套界面，区别是：没有标注工具栏和放大镜；松开鼠标（拖出选区或单击窗口）立即识别，
@@ -21,9 +21,9 @@ final class ScreenshotSession: OverlayEventHandler {
         case screenshot, translate
 
         init(_ action: HotkeyManager.Action) {
-            switch action {
+            switch action.base {
             case .translate: self = .translate
-            case .screenshot, .recording, .clothesline: self = .screenshot
+            default: self = .screenshot
             }
         }
 
@@ -38,17 +38,20 @@ final class ScreenshotSession: OverlayEventHandler {
 
     var onFinish: (() -> Void)?
     /// 截屏翻译：选好区域后回调（这时界面已经关闭）
-    var onTranslate: ((FrozenDisplay.Crop) -> Void)?
+    /// 截屏翻译的结果，和「关掉结果窗口后把焦点还给谁」（截屏翻译结束时不马上还：结果窗口要拿到焦点）
+    var onTranslate: ((FrozenDisplay.Crop, FrontmostAppGuard?) -> Void)?
     /// 长截图：点了工具栏的「长截图」（这时界面已经关闭），参数是选区（全局坐标）和所在屏幕
     var onLongCapture: ((CGRect, NSScreen) -> Void)?
 
     let purpose: Purpose
     /// 截屏翻译：框选文字的界面（没有标注工具，松开鼠标就识别）
     private var isTextCapture: Bool { purpose != .screenshot }
-    /// 打开这个界面的快捷键（界面里再按一次切换区域 / 全屏）
+    /// 打开这个界面的那一类快捷键（区域的那个）
     let hotkeyAction: HotkeyManager.Action
+    /// 区域的快捷键（⌥A / ⌥D）和全屏的快捷键（⌥⇧A / ⌥⇧D）：界面里按哪个就切到哪种
     private let hotkey: Hotkey
-    private(set) var mode: CaptureMode = .region
+    private let fullHotkey: Hotkey
+    private(set) var mode: CaptureMode
 
     private var displays: [CGDirectDisplayID: FrozenDisplay] = [:]
     private var overlays: [CGDirectDisplayID: OverlayWindow] = [:]
@@ -59,7 +62,6 @@ final class ScreenshotSession: OverlayEventHandler {
 
     private let selector = RegionSelector()
     private let magnifier = MagnifierView()
-    private let hint = HintBar()
 
     /// 标注：工具栏在选区旁（全屏模式在屏幕底部中央）；标注画在冻结底图上，选区只决定最后裁剪哪一块
     private let toolbar = AnnotationToolbar(showsLongCapture: true)
@@ -91,8 +93,10 @@ final class ScreenshotSession: OverlayEventHandler {
     /// 截图前正在使用的 App、切到前台、被抢走前台时取消（开始时创建）
     private var frontmost: FrontmostAppGuard?
 
-    init(hotkey: Hotkey, purpose: Purpose = .screenshot) {
+    init(hotkey: Hotkey, fullHotkey: Hotkey, purpose: Purpose = .screenshot, mode: CaptureMode = .region) {
         self.hotkey = hotkey
+        self.fullHotkey = fullHotkey
+        self.mode = mode
         self.hotkeyAction = purpose.hotkeyAction
         self.purpose = purpose
         toolbar.onSelectTool = { [weak self] tool in self?.selectTool(tool) }
@@ -191,11 +195,13 @@ final class ScreenshotSession: OverlayEventHandler {
 
         if isPrimary {
             window.makeKeyAndOrderFront(nil)
-            // 遮罩已是焦点窗口，后面的 ⌥A（截屏翻译是 ⌥D）交给它自己处理
+            // 遮罩已是焦点窗口，后面的 ⌥A / ⌥⇧A（截屏翻译是 ⌥D / ⌥⇧D）交给它自己处理
             HotkeyManager.shared.suspend(hotkeyAction)
+            if let full = hotkeyAction.fullScreen { HotkeyManager.shared.suspend(full) }
             let elapsed = ContinuousClock.now - startTime
             Log.capture.notice("截图界面已出现，耗时 \(elapsed.formatted(.units(allowed: [.milliseconds])), privacy: .public)，\(frozen.image.width)×\(frozen.image.height) 像素")
             activateForCursor()
+            recognizeWholeScreenIfNeeded()
             #if DEBUG
             // 调试：VELOS_AUTOCANCEL=秒数 时自动取消，用来验证退出后焦点是否回到原来的 App
             if let seconds = Double(ProcessInfo.processInfo.environment["VELOS_AUTOCANCEL"] ?? "") {
@@ -221,7 +227,6 @@ final class ScreenshotSession: OverlayEventHandler {
         for (center, token) in observers { center.removeObserver(token) }
         observers.removeAll()
         frontmost?.stopWatching()
-        hint.remove()
         magnifier.removeFromSuperview()
         toolbar.removeFromSuperview()
         annotator?.layer.removeFromSuperlayer()
@@ -236,15 +241,16 @@ final class ScreenshotSession: OverlayEventHandler {
         displays.removeAll()   // 释放底图（每块屏幕十几到二十几 MB）
         NSCursor.arrow.set()
         HotkeyManager.shared.resume(hotkeyAction)
+        if let full = hotkeyAction.fullScreen { HotkeyManager.shared.resume(full) }
         if restoreFocus { frontmost?.restorePreviousApp() }
         onFinish?()
     }
 
     private func showFailure(_ error: Error) {
-        // 权限被收回时 ScreenCaptureKit 会报错：回到权限引导，而不是静默失败
+        // 权限被收回时 ScreenCaptureKit 会报错：打开设置 › 通用的授权按钮，而不是静默失败
         PermissionManager.shared.refresh()
         if !PermissionManager.shared.screenRecordingGranted {
-            SettingsLauncher.openOnboarding()
+            SettingsLauncher.openPermissions()
             return
         }
         let alert = NSAlert()
@@ -283,14 +289,22 @@ final class ScreenshotSession: OverlayEventHandler {
 
     // MARK: - 模式切换与完成
 
-    func toggleMode() {
-        guard !isFinished else { return }
+    /// 切到区域或全屏（界面里按区域 / 全屏的快捷键）
+    func setMode(_ newMode: CaptureMode) {
+        guard !isFinished, newMode != mode else { return }
         annotator?.endTextEditing()
-        mode.toggle()
+        mode = newMode
         selector.cancelInteraction()   // 拖拽到一半切换模式：结束这次拖拽，已有选区保留
         Log.capture.notice("切换到\(self.mode == .region ? "区域" : "全屏", privacy: .public)模式")
         refresh()
         overlayCursor(at: mousePoint).set()
+        recognizeWholeScreenIfNeeded()
+    }
+
+    /// 全屏翻译不用再按 Enter：一进入全屏模式就识别鼠标所在的整块屏幕
+    private func recognizeWholeScreenIfNeeded() {
+        guard isTextCapture, mode == .fullscreen, !isFinished, displays[activeDisplayID] != nil else { return }
+        complete()
     }
 
     private var purposeTitle: String {
@@ -304,11 +318,11 @@ final class ScreenshotSession: OverlayEventHandler {
     private func complete(save: Bool = false) {
         let window = shapedWindow
         guard let result = makeResult() else { return }
-        finish()
+        finish(restoreFocus: purpose != .translate)
         switch purpose {
         case .translate:
             Log.capture.notice("截屏翻译：识别 \(result.image.width)×\(result.image.height) 像素")
-            onTranslate?(result)
+            onTranslate?(result, frontmost)
             return
         case .screenshot:
             break
@@ -578,7 +592,6 @@ final class ScreenshotSession: OverlayEventHandler {
         }
         updateMagnifier()
         updateToolbar()
-        placeHint()
     }
 
     private func updateMagnifier() {
@@ -598,36 +611,6 @@ final class ScreenshotSession: OverlayEventHandler {
         magnifier.place(near: CGPoint(x: mousePoint.x - origin.x, y: mousePoint.y - origin.y), in: view.bounds)
     }
 
-    private func placeHint() {
-        guard let window = overlays[activeDisplayID], let view = window.contentView,
-              let frozen = displays[activeDisplayID] else { return }
-        let key = hotkey.displayString
-        switch (mode, isTextCapture) {
-        case (.region, false):
-            hint.setContent(title: "区域截图", items: ["\(key) 切换全屏", "Enter 完成", "Esc 取消"])
-        case (.fullscreen, false):
-            hint.setContent(title: "全屏截图", items: ["\(key) 切换区域", "Enter 完成", "Esc 取消"])
-        case (.region, true):
-            hint.setContent(title: "截屏翻译", items: ["框选文字或单击窗口", "\(key) 切换全屏", "Esc 取消"])
-        case (.fullscreen, true):
-            hint.setContent(title: "全屏翻译", items: ["Enter 识别整屏", "\(key) 切换区域", "Esc 取消"])
-        }
-        // 提示条避开选区、放大镜和鼠标
-        let origin = frozen.screen.frame.origin
-        var avoid: [CGRect] = []
-        if mode == .region, let selection = selector.selection, selector.selectionDisplayID == activeDisplayID {
-            avoid.append(selection.offsetBy(dx: -origin.x, dy: -origin.y))
-        }
-        if magnifier.superview === view {
-            avoid.append(magnifier.frame)
-        }
-        if toolbar.superview === view {
-            avoid.append(toolbar.frame)
-        }
-        avoid.append(CGRect(x: mousePoint.x - origin.x - 16, y: mousePoint.y - origin.y - 16, width: 32, height: 32))
-        hint.place(in: view, screen: frozen.screen, avoiding: avoid)
-    }
-
     /// 记录鼠标位置；换到另一块屏幕时更新全屏模式的目标和提示条位置
     private func track(_ point: NSPoint) {
         mousePoint = point
@@ -645,7 +628,11 @@ final class ScreenshotSession: OverlayEventHandler {
         if event.isARepeat && ArrowKey.direction(event.keyCode) == nil { return true }
 
         if hotkey.matches(event) {
-            toggleMode()
+            setMode(.region)
+            return true
+        }
+        if fullHotkey.matches(event) {
+            setMode(.fullscreen)
             return true
         }
 
@@ -685,7 +672,7 @@ final class ScreenshotSession: OverlayEventHandler {
     func overlayShouldIntercept(_ event: NSEvent) -> Bool {
         guard annotator?.isEditingText == true else { return false }
         let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
-        return hotkey.matches(event) || (Int(event.keyCode) == kVK_ANSI_S && modifiers == .command)
+        return hotkey.matches(event) || fullHotkey.matches(event) || (Int(event.keyCode) == kVK_ANSI_S && modifiers == .command)
     }
 
     /// 遮罩失去焦点、且焦点没有转到 Velos 的另一个遮罩上（例如系统弹窗抢走焦点）时取消截图，避免遮罩卡在屏幕上
@@ -834,11 +821,6 @@ final class ScreenshotSession: OverlayEventHandler {
     var debugMagnifierVisible: Bool { magnifier.superview != nil }
     var debugActiveOverlay: NSView? { overlays[activeDisplayID]?.contentView }
     var debugScale: CGFloat { displays[activeDisplayID]?.scale ?? 1 }
-    /// 顶部提示条在屏幕上的位置
-    var debugHintFrame: CGRect? {
-        guard let host = hint.view.superview, let window = host.window else { return nil }
-        return window.convertToScreen(host.convert(hint.view.frame, to: nil))
-    }
     var debugMagnifierFrame: CGRect? {
         guard magnifier.superview != nil, let origin = displays[activeDisplayID]?.screen.frame.origin else { return nil }
         return magnifier.frame.offsetBy(dx: origin.x, dy: origin.y)

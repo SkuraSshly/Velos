@@ -1,7 +1,7 @@
 import AppKit
 import Synchronization
 
-/// Velos 自己画的光标，配合温暖风格。macOS 没有公开的「移动」光标，系统调整大小的小三角又是黑色的，所以自己画：
+/// Velos 自己画的光标，配合温暖磨砂风格。macOS 没有公开的「移动」光标，系统调整大小的小三角又是黑色的，所以自己画：
 /// 杏色填充 + 深杏色细边 + 白色描边（任何背景上都看得清，和系统光标一样）+ 柔和投影。
 /// 用矢量绘制，Retina 屏上自动按像素重画，不会发虚。
 ///
@@ -64,7 +64,7 @@ enum WarmCursor {
 
     // MARK: - 形状
 
-    /// 四个箭头：细杆 + 圆润的三角箭头，中心白圈里一个可可色小圆点
+    /// 四个箭头：细杆 + 圆润的三角箭头，中心白圈里一个墨色小圆点
     static func move(center c: CGPoint) -> Shape {
         let shaftHalfWidth: CGFloat = 0.85
         let headBase: CGFloat = 7.4, headTip: CGFloat = 11.2, headHalfWidth: CGFloat = 3.1
@@ -77,10 +77,10 @@ enum WarmCursor {
             arrows.addLines(between: [p(headTip, 0), p(headBase, -headHalfWidth), p(headBase, headHalfWidth)])
             arrows.closeSubpath()
         }
-        return Shape(parts: [.init(path: arrows, fill: WarmPalette.apricot, edge: WarmPalette.apricotEdge)]) { ctx in
+        return Shape(parts: [.init(path: arrows, fill: GlassPalette.accent, edge: GlassPalette.accentEdge)]) { ctx in
             ctx.setFillColor(.white)
             ctx.fillEllipse(in: CGRect(x: c.x - 2.6, y: c.y - 2.6, width: 5.2, height: 5.2))
-            ctx.setFillColor(WarmPalette.cocoa.cgColor)
+            ctx.setFillColor(GlassPalette.deepInk.cgColor)
             ctx.fillEllipse(in: CGRect(x: c.x - 1.7, y: c.y - 1.7, width: 3.4, height: 3.4))
         }
     }
@@ -97,10 +97,10 @@ enum WarmCursor {
             path.closeSubpath()
             return path
         }
-        let strong = Shape.Part(path: triangle(1), fill: WarmPalette.apricot, edge: WarmPalette.apricotEdge)
+        let strong = Shape.Part(path: triangle(1), fill: GlassPalette.accent, edge: GlassPalette.accentEdge)
         let back = outward
-            ? Shape.Part(path: triangle(-1), fill: WarmPalette.apricotPale, edge: WarmPalette.apricotPaleEdge)
-            : Shape.Part(path: triangle(-1), fill: WarmPalette.apricot, edge: WarmPalette.apricotEdge)
+            ? Shape.Part(path: triangle(-1), fill: GlassPalette.accentPale, edge: GlassPalette.accentPaleEdge)
+            : Shape.Part(path: triangle(-1), fill: GlassPalette.accent, edge: GlassPalette.accentEdge)
         return Shape(parts: [strong, back])
     }
 
@@ -108,7 +108,7 @@ enum WarmCursor {
     /// 自测：把几种光标放大画在浅色、深色、杏色、蓝色背景上，方便看效果（每行一种背景，每列一种光标）
     static func debugRenderPreview(to url: URL) {
         let scale: CGFloat = 5
-        let backgrounds: [NSColor] = [.white, NSColor(white: 0.18, alpha: 1), WarmPalette.apricot,
+        let backgrounds: [NSColor] = [.white, NSColor(white: 0.18, alpha: 1), GlassPalette.accent,
                                       NSColor(srgbRed: 0.13, green: 0.27, blue: 0.53, alpha: 1)]
         let shapes: [(CGPoint) -> Shape] = [
             move(center:),

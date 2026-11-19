@@ -4,10 +4,6 @@ import AppKit
 enum CaptureMode {
     case region
     case fullscreen
-
-    mutating func toggle() {
-        self = (self == .region) ? .fullscreen : .region
-    }
 }
 
 /// 某一块屏幕上遮罩需要显示的内容（坐标均为该遮罩视图自己的坐标，单位：点）
@@ -51,9 +47,9 @@ protocol OverlayEventHandler: AnyObject {
 /// 截图界面、录屏界面、截屏翻译的强调色：都取自温暖的主题配色
 enum OverlayAccent {
     /// 截图：主题的杏色（选区边框、控制点、标注的控制点、长截图的边框、选中的钉图）
-    static let screenshot = WarmPalette.apricot
+    static let screenshot = GlassPalette.accent
     /// 录屏：主题的珊瑚红
-    static let recording = WarmPalette.coral
+    static let recording = GlassPalette.hot
     /// 截屏翻译：鼠尾草绿（设置界面里用的那种柔和的绿），和截图、录屏一眼区分开，又同属温暖的配色
     static let translate = NSColor(srgbRed: 0.45, green: 0.70, blue: 0.47, alpha: 1)
 }

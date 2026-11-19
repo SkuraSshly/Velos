@@ -78,6 +78,7 @@ final class Preferences: ObservableObject {
         case recordingCountdown, highlightClicks, recordingShowThumbnail, recordingDeleteForever
         case gifFrameRate, gifMaxWidth
         case screenshotHotkey, recordingHotkey, translateHotkey
+        case screenshotFullHotkey, recordingFullHotkey, translateFullHotkey
         case windowShadow, windowCorners
         case clotheslineHotkey, clotheslineEnabled, clotheslineHover, clotheslineSize, clotheslineKeep, clotheslineClipboard, clotheslineModifier
         case ocrSmartLayout, ocrDetectsQRCodes, ocrPreferredLanguage, translateWindowPinnedByDefault
@@ -180,8 +181,11 @@ final class Preferences: ObservableObject {
     @Published var recordingHotkey: Hotkey { didSet { Self.save(recordingHotkey.stored, .recordingHotkey) } }
     @Published var translateHotkey: Hotkey { didSet { Self.save(translateHotkey.stored, .translateHotkey) } }
     @Published var clotheslineHotkey: Hotkey { didSet { Self.save(clotheslineHotkey.stored, .clotheslineHotkey) } }
+    @Published var screenshotFullHotkey: Hotkey { didSet { Self.save(screenshotFullHotkey.stored, .screenshotFullHotkey) } }
+    @Published var recordingFullHotkey: Hotkey { didSet { Self.save(recordingFullHotkey.stored, .recordingFullHotkey) } }
+    @Published var translateFullHotkey: Hotkey { didSet { Self.save(translateFullHotkey.stored, .translateFullHotkey) } }
 
-    /// 是否已经走完首次运行的权限引导（界面不需要监听它，所以不用 @Published）
+    /// 是否已经过了第一次运行（第一次没有屏幕录制权限时会打开设置 › 通用；界面不需要监听它，所以不用 @Published）
     var hasCompletedOnboarding: Bool {
         get { Self.load(.hasCompletedOnboarding, false) }
         set { Self.save(newValue, .hasCompletedOnboarding) }
@@ -245,6 +249,9 @@ final class Preferences: ObservableObject {
         recordingHotkey = Hotkey(stored: Self.load(.recordingHotkey, [Int]())) ?? .defaultRecording
         translateHotkey = Hotkey(stored: Self.load(.translateHotkey, [Int]())) ?? .defaultTranslate
         clotheslineHotkey = Hotkey(stored: Self.load(.clotheslineHotkey, [Int]())) ?? .defaultClothesline
+        screenshotFullHotkey = Hotkey(stored: Self.load(.screenshotFullHotkey, [Int]())) ?? .defaultScreenshotFull
+        recordingFullHotkey = Hotkey(stored: Self.load(.recordingFullHotkey, [Int]())) ?? .defaultRecordingFull
+        translateFullHotkey = Hotkey(stored: Self.load(.translateFullHotkey, [Int]())) ?? .defaultTranslateFull
         // 默认快捷键从 ⌥1 / ⌥2 / ⌥3 改成 ⌥A / ⌥S / ⌥D：还在用旧默认值的一次性换成新的（只做一次，之后自己改回 ⌥1 也会保留）
         if !AppIdentity.defaults.bool(forKey: "hotkeysMigratedToASD") {
             if screenshotHotkey == Hotkey.legacyDefaults[0] { screenshotHotkey = .defaultScreenshot }

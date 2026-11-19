@@ -12,10 +12,6 @@ enum DebugSnapshots {
 
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
-            OnboardingWindowController.show()
-            try? await Task.sleep(for: .milliseconds(500))
-            snapshot(titled: "Velos 权限设置", to: dir.appendingPathComponent("onboarding.png"))
-
             for tab in SettingsTab.allCases {
                 SettingsWindowController.show(tab)
                 try? await Task.sleep(for: .milliseconds(500))
@@ -36,7 +32,7 @@ enum DebugSnapshots {
             for _ in 0..<count {
                 CaptureCoordinator.shared.beginScreenshot()
                 try? await Task.sleep(for: .milliseconds(700))
-                CaptureCoordinator.shared.debugSession?.toggleMode()
+                CaptureCoordinator.shared.debugSession?.setMode(.fullscreen)
                 CaptureCoordinator.shared.debugSession?.debugComplete()
                 try? await Task.sleep(for: .milliseconds(700))
             }
@@ -71,7 +67,6 @@ enum DebugSnapshots {
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
         print("\(title)：窗口 \(Int(window.frame.width))×\(Int(window.frame.height)) → \(url.lastPathComponent)")
         // 用 orderOut 而不是 close：不触发 windowWillClose，不会把「已完成首次引导」写进设置
-        if title == "Velos 权限设置" { window.orderOut(nil) }
     }
 }
 #endif

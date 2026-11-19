@@ -1,33 +1,35 @@
 import AppKit
 
-// 截图工具栏、录制选项条、下拉菜单共用的「温暖、圆润、半透明磨砂」风格：
-// - 底座是系统的毛玻璃（NSVisualEffectView），上面叠一层奶油色（深色模式下是可可色）的半透明暖色
-// - 胶囊形外形、圆形按钮、柔和的投影
-// - 选中用杏色、「开始录制」用珊瑚红，图标是暖棕色
+// 截图工具栏、录制选项条、下拉菜单、缩略图共用的「温暖、圆润、半透明磨砂」风格（和 2.7 一样，和橙色图标一致）：
+// - 底座是系统的毛玻璃，上面叠一层奶油色（深色模式下是可可色）的半透明暖色；胶囊形外形、柔和的投影
+// - 选中、「完成」用杏色，「开始录制」用珊瑚红，图标和文字是暖棕色
+// - 一组按钮里的选中块（标注工具、帧率、录屏的声音 / 麦克风 / 指针）是染成杏色的液态玻璃，换选中项时像液体一样流过去（见 NativeGlassLens）
 
 // MARK: - 配色
 
 /// AppKit 界面（截图工具栏、控制条、缩略图等浮在屏幕上的磨砂面板）的配色。
-/// 主色 apricot、coral 也是设置窗口（SwiftUI，见 SettingsPane.swift 的 Color 扩展）的来源；
+/// 主色 accent（杏色）、hot（珊瑚红）也是设置窗口（SwiftUI，见 SettingsPane.swift 的 Color 扩展）的来源；
 /// 文字、细线这几种两边分别按各自的底色调过、数值略有不同，改动时两边一起看
-struct WarmPalette {
+struct GlassPalette {
     let isDark: Bool
 
     init(for view: NSView) {
         isDark = view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
-    /// 杏色：选中的工具、「完成」按钮
-    static let apricot = NSColor(srgbRed: 0.96, green: 0.58, blue: 0.36, alpha: 1)
+    /// 杏色：选中的工具、「完成」按钮、选区
+    static let accent = NSColor(srgbRed: 0.96, green: 0.58, blue: 0.36, alpha: 1)
     /// 深一点的杏色：自绘光标的细边，浅色背景上也有清楚的轮廓
-    static let apricotEdge = NSColor(srgbRed: 0.80, green: 0.42, blue: 0.22, alpha: 1)
+    static let accentEdge = NSColor(srgbRed: 0.80, green: 0.42, blue: 0.22, alpha: 1)
     /// 浅杏色和它的细边：调整大小光标里朝里的那个小三角
-    static let apricotPale = NSColor(srgbRed: 0.99, green: 0.84, blue: 0.73, alpha: 1)
-    static let apricotPaleEdge = NSColor(srgbRed: 0.90, green: 0.66, blue: 0.52, alpha: 1)
+    static let accentPale = NSColor(srgbRed: 0.99, green: 0.84, blue: 0.73, alpha: 1)
+    static let accentPaleEdge = NSColor(srgbRed: 0.90, green: 0.66, blue: 0.52, alpha: 1)
     /// 可可色：浅色模式的正文、移动光标的圆心
-    static let cocoa = NSColor(srgbRed: 0.33, green: 0.24, blue: 0.18, alpha: 1)
-    /// 珊瑚红：「开始录制」
-    static let coral = NSColor(srgbRed: 0.93, green: 0.37, blue: 0.30, alpha: 1)
+    static let deepInk = NSColor(srgbRed: 0.33, green: 0.24, blue: 0.18, alpha: 1)
+    /// 珊瑚红：「开始录制」、录屏的选区
+    static let hot = NSColor(srgbRed: 0.93, green: 0.37, blue: 0.30, alpha: 1)
+    /// 投影：暖棕色
+    static let shadow = NSColor(srgbRed: 0.25, green: 0.15, blue: 0.08, alpha: 1)
 
     /// 叠在毛玻璃上的暖色
     var tint: NSColor {
@@ -80,7 +82,7 @@ final class FrostedPanel: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = false
-        layer?.shadowColor = NSColor(srgbRed: 0.25, green: 0.15, blue: 0.08, alpha: 1).cgColor
+        layer?.shadowColor = GlassPalette.shadow.cgColor
         layer?.shadowOpacity = shadowRadius < 10 ? 0.18 : 0.22
         layer?.shadowRadius = shadowRadius
         layer?.shadowOffset = CGSize(width: 0, height: shadowRadius < 10 ? -2 : -4)
@@ -115,7 +117,7 @@ final class FrostedPanel: NSView {
     }
 
     private func applyPalette() {
-        let palette = WarmPalette(for: self)
+        let palette = GlassPalette(for: self)
         effect.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
         tintView.layer?.backgroundColor = palette.tint.cgColor
         effect.layer?.borderWidth = 0.5
@@ -129,9 +131,9 @@ final class FrostedPanel: NSView {
 }
 
 /// 面板里的细分隔线
-final class WarmSeparator: NSView {
+final class GlassSeparator: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        WarmPalette(for: self).separator.setFill()
+        GlassPalette(for: self).separator.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: bounds.width / 2, yRadius: bounds.width / 2).fill()
     }
 }
@@ -139,7 +141,7 @@ final class WarmSeparator: NSView {
 // MARK: - 按钮
 
 /// 悬停高亮的公共逻辑
-class WarmControl: NSView {
+class GlassControl: NSView {
     var action: (() -> Void)?
     var isEnabled = true { didSet { updateAppearance() } }
     private(set) var isHovered = false
@@ -188,15 +190,30 @@ class WarmControl: NSView {
     /// 子类根据状态刷新外观
     func updateAppearance() {}
 
-    var palette: WarmPalette { WarmPalette(for: self) }
+    var palette: GlassPalette { GlassPalette(for: self) }
 }
 
-/// 圆形图标按钮：未选中是暖棕色图标，悬停有淡淡的暖色圆底，选中是杏色实心圆 + 白色图标
-final class ToolbarButton: WarmControl {
+/// 一小块液态玻璃（macOS 26 起），用来标出选中的工具；更早的系统返回 nil
+/// - Parameter tint: 给玻璃染的颜色（杏色）；nil 是透明的玻璃
+func makeLiquidGlass(tint: NSColor? = nil) -> NSView? {
+    guard #available(macOS 26, *) else { return nil }
+    let glass = NSGlassEffectView()
+    glass.style = .regular
+    glass.tintColor = tint
+    if #available(macOS 27, *) { glass.effectIsInteractive = true }   // 按下、悬停时玻璃有反应
+    return glass
+}
+
+/// 图标按钮（圆角方块）：平时是暖棕色图标，悬停有淡淡的暖色底；选中时是杏色实心 + 白色图标。
+/// 一组只能选一个、或各自开关的按钮（标注工具、录屏的声音 / 麦克风 / 指针），选中块由外面一块会流动的杏色液态玻璃代替（见 NativeGlassLens），这里不画
+final class ToolbarButton: GlassControl {
     var isSelected = false { didSet { updateAppearance() } }
-    /// 用强调色实心显示（不随选中状态变化）
+    /// 一直显示成选中的样子
     var isProminent = false { didSet { updateAppearance() } }
-    var accent: NSColor = WarmPalette.apricot { didSet { updateAppearance() } }
+    /// 选中时的颜色
+    var accent: NSColor = GlassPalette.accent { didSet { updateAppearance() } }
+    /// 选中时自己画杏色底。由外面的玻璃标出选中项时关掉（图标照样变白）
+    var drawsOwnSelection = true { didSet { updateAppearance() } }
     private let iconView = NSImageView()
 
     init(symbol: String, help: String) {
@@ -208,6 +225,11 @@ final class ToolbarButton: WarmControl {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// 点在按钮上任何地方（包括图标）都算按这个按钮
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        frame.contains(point) ? self : nil
+    }
 
     /// 更换图标（开关类按钮在开 / 关时显示不同图标）
     func setSymbol(_ symbol: String) {
@@ -225,17 +247,19 @@ final class ToolbarButton: WarmControl {
     override func layout() {
         super.layout()
         iconView.frame = bounds
-        layer?.cornerRadius = min(bounds.width, bounds.height) / 2
+        // 圆角方块，和流动的选中玻璃同一个形状
+        layer?.cornerRadius = min(GlassShape.selectionRadius, min(bounds.width, bounds.height) / 2)
+        layer?.cornerCurve = .continuous
         updateAppearance()
     }
 
     override func updateAppearance() {
         let filled = isSelected || isProminent
-        let background: NSColor = if filled {
+        let background: NSColor = if filled && drawsOwnSelection {
             isPressed ? accent.blended(withFraction: 0.15, of: .black) ?? accent : accent
-        } else if isPressed {
+        } else if isPressed && !filled {
             palette.pressed
-        } else if isHovered && isEnabled {
+        } else if isHovered && isEnabled && !filled {
             palette.hover
         } else {
             .clear
@@ -245,8 +269,126 @@ final class ToolbarButton: WarmControl {
     }
 }
 
-/// 胶囊按钮（图标 + 文字）：「完成」「开始录制」
-final class PillButton: WarmControl {
+/// 一组按钮里标出选中项的那块玻璃「透镜」，换选中项时照 iOS 26 切换栏目的样子动：
+/// 1. 浮起：一下子变大一圈，边上出现一道亮边和一点影子
+/// 2. 滑过去：顺着移动的方向拉长（越快越长），带一点回弹
+/// 3. 落下：变回原来的大小，亮边、影子消失
+/// 第一次选中时从小一点弹出来，取消选中时缩小淡出。用弹簧物理一帧一帧算（120 帧 / 秒），动完就停，平时不占资源。
+@MainActor
+final class SlidingGlassLens {
+    /// 放进按钮所在的那一层（在按钮下面）
+    let view: NSView
+    private var timer: Timer?
+    private var lastTick = CACurrentMediaTime()
+    // 水平位置（中心）、出现的程度（0 看不见 … 1 完全出现），各自一个弹簧
+    private var x: CGFloat = 0, vx: CGFloat = 0, targetX: CGFloat = 0
+    private var appear: CGFloat = 0, vAppear: CGFloat = 0, targetAppear: CGFloat = 0
+    private var centerY: CGFloat = 0
+    private var size = CGSize(width: 32, height: 32)
+
+    init() {
+        if let glass = makeLiquidGlass(tint: GlassPalette.accent) {
+            view = glass
+        } else {
+            view = NSView()
+            view.wantsLayer = true
+            view.layer?.backgroundColor = GlassPalette.accent.cgColor
+        }
+        view.wantsLayer = true
+        view.alphaValue = 0
+        view.layer?.masksToBounds = false
+        view.layer?.shadowColor = NSColor.black.cgColor
+        view.layer?.shadowOffset = CGSize(width: 0, height: -1)
+    }
+
+    /// 移到 rect（按钮的 frame，和透镜同一个坐标）；nil 表示没有选中项（缩小淡出）
+    func move(to rect: CGRect?, animated: Bool = true) {
+        if let rect {
+            size = rect.size
+            centerY = rect.midY
+            targetX = rect.midX
+            targetAppear = 1
+            if appear < 0.05 { x = targetX; vx = 0 }   // 从无到有：原地弹出来，不从别处滑过来
+        } else {
+            targetAppear = 0
+        }
+        guard animated else {
+            x = targetX; vx = 0
+            appear = targetAppear; vAppear = 0
+            apply()
+            return
+        }
+        start()
+    }
+
+    private func start() {
+        guard timer == nil else { return }
+        lastTick = CACurrentMediaTime()
+        // 弱引用自己：工具栏关掉、透镜释放了，计时器也跟着停（不会在后台一直跑）
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard let self else { return timer.invalidate() }
+                self.tick()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func tick() {
+        let now = CACurrentMediaTime()
+        var dt = min(1.0 / 30, now - lastTick)
+        lastTick = now
+        // 小步积分，弹簧硬一点也稳
+        while dt > 0 {
+            let h = min(dt, 1.0 / 240)
+            // 位置：稍微欠阻尼，落下时有一点点回弹
+            let ax = 330 * (targetX - x) - 27 * vx
+            vx += ax * CGFloat(h)
+            x += vx * CGFloat(h)
+            let aa = 260 * (targetAppear - appear) - 30 * vAppear
+            vAppear += aa * CGFloat(h)
+            appear += vAppear * CGFloat(h)
+            dt -= h
+        }
+        apply()
+        let settled = abs(targetX - x) < 0.25 && abs(vx) < 4 && abs(targetAppear - appear) < 0.005 && abs(vAppear) < 0.05
+        if settled {
+            x = targetX; vx = 0; appear = targetAppear; vAppear = 0
+            apply()
+            timer?.invalidate()
+            timer = nil
+        }
+    }
+
+    /// 按现在的位置、速度画出来
+    private func apply() {
+        // 浮起的程度：跟着速度走（滑得越快浮得越高）
+        let lift = min(1, abs(vx) / 520)
+        let pop = 0.72 + 0.28 * max(0, appear)   // 弹出 / 收起时的大小
+        let width = (size.width * (1 + 0.2 * lift) + min(14, abs(vx) * 0.014)) * pop
+        let height = size.height * (1 + 0.12 * lift) * pop
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        view.frame = CGRect(x: x - width / 2, y: centerY - height / 2, width: width, height: height).integral
+        view.alphaValue = max(0, min(1, appear))
+        if #available(macOS 26, *), let glass = view as? NSGlassEffectView {
+            glass.cornerRadius = GlassShape.selectionRadius
+        } else {
+            view.layer?.cornerRadius = GlassShape.selectionRadius
+        }
+        // 浮起时：一道亮边 + 一点影子
+        view.layer?.borderWidth = lift > 0.02 ? 1 : 0
+        view.layer?.borderColor = NSColor.white.withAlphaComponent(0.75 * lift).cgColor
+        view.layer?.cornerRadius = GlassShape.selectionRadius
+        view.layer?.shadowOpacity = Float(0.22 * lift)
+        view.layer?.shadowRadius = 6
+        CATransaction.commit()
+    }
+}
+
+/// 胶囊按钮（图标 + 文字）：「完成」杏色、「开始录制」「停止」珊瑚红，白字
+final class PillButton: GlassControl {
     var title: String { didSet { needsDisplay = true } }
     var symbol: String { didSet { needsDisplay = true } }
     var color: NSColor { didSet { needsDisplay = true } }
@@ -298,20 +440,44 @@ final class PillButton: WarmControl {
 }
 
 /// 胶囊形分段选择（帧率 30 / 60）
-final class SegmentedPill: WarmControl {
+final class SegmentedPill: GlassControl {
     let titles: [String]
-    var selectedIndex = 0 { didSet { needsDisplay = true } }
+    var selectedIndex = 0 {
+        didSet {
+            needsDisplay = true
+            labels.needsDisplay = true
+            lens?.select(selectedIndex, animated: lensShown)
+            lensShown = true
+        }
+    }
     var onSelect: ((Int) -> Void)?
+    /// 选中的那一段：染成杏色的液态玻璃，换选中项时流过去（macOS 26 起；更早的系统画一块杏色）
+    private let lens = NativeGlassLens(cornerRadius: 7)
+    private var lensShown = false
+    /// 文字单独一层，盖在玻璃上面（不然选中那一段的数字会被玻璃挡住）
+    private let labels = OverlayDrawing()
 
     init(titles: [String], help: String) {
         self.titles = titles
         super.init(frame: .zero)
         toolTip = help
+        if let lens { addSubview(lens.view) }
+        labels.drawing = { [weak self] in self?.drawTitles() }
+        addSubview(labels)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override func updateAppearance() { needsDisplay = true }
+    override func updateAppearance() {
+        needsDisplay = true
+        labels.needsDisplay = true
+    }
+
+    override func layout() {
+        super.layout()
+        labels.frame = bounds
+        lens?.setSlots(titles.indices.map(segmentRect), in: bounds)
+    }
 
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
@@ -320,24 +486,35 @@ final class SegmentedPill: WarmControl {
         onSelect?(index)
     }
 
+    private var track: CGRect { bounds.insetBy(dx: 2, dy: 4) }
+
+    private func segmentRect(_ index: Int) -> CGRect {
+        let track = self.track
+        let segmentWidth = track.width / CGFloat(titles.count)
+        return CGRect(x: track.minX + CGFloat(index) * segmentWidth, y: track.minY,
+                      width: segmentWidth, height: track.height).insetBy(dx: 2, dy: 2)
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         let palette = self.palette
-        let track = bounds.insetBy(dx: 2, dy: 4)
         palette.hover.setFill()
-        NSBezierPath(roundedRect: track, xRadius: track.height / 2, yRadius: track.height / 2).fill()
+        NSBezierPath(roundedRect: track, xRadius: GlassShape.selectionRadius, yRadius: GlassShape.selectionRadius).fill()
 
-        let segmentWidth = track.width / CGFloat(titles.count)
+        if lens == nil {
+            // 旧系统：选中是一块杏色的圆角块
+            GlassPalette.accent.setFill()
+            let segment = segmentRect(selectedIndex)
+            NSBezierPath(roundedRect: segment, xRadius: 7, yRadius: 7).fill()
+        }
+    }
+
+    private func drawTitles() {
+        let palette = self.palette
         for (index, title) in titles.enumerated() {
-            let segment = CGRect(x: track.minX + CGFloat(index) * segmentWidth, y: track.minY,
-                                 width: segmentWidth, height: track.height).insetBy(dx: 2, dy: 2)
-            let selected = index == selectedIndex
-            if selected {
-                WarmPalette.apricot.setFill()
-                NSBezierPath(roundedRect: segment, xRadius: segment.height / 2, yRadius: segment.height / 2).fill()
-            }
+            let segment = segmentRect(index)
             let text = NSAttributedString(string: title, attributes: [
                 .font: roundedFont(ofSize: 12, weight: .semibold),
-                .foregroundColor: selected ? NSColor.white : palette.ink,
+                .foregroundColor: index == selectedIndex ? NSColor.white : palette.ink,
             ])
             let size = text.size()
             text.draw(at: CGPoint(x: segment.midX - size.width / 2, y: segment.midY - size.height / 2))
@@ -345,11 +522,18 @@ final class SegmentedPill: WarmControl {
     }
 }
 
+/// 不接收鼠标、只按闭包画东西的透明层（叠在别的子视图上面画文字之类）
+final class OverlayDrawing: NSView {
+    var drawing: (() -> Void)?
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) { drawing?() }
+}
+
 // MARK: - 下拉菜单
 
 /// 温暖磨砂风格的下拉菜单（代替系统菜单，外观与工具栏一致）。
 /// 显示在所在视图里；点菜单外任何地方、或按 Esc 都会关闭。
-final class WarmMenu: NSView {
+final class GlassMenu: NSView {
     struct Item {
         let id: String
         let title: String
@@ -366,8 +550,8 @@ final class WarmMenu: NSView {
     ///   - anchor: 触发按钮在 superview 中的位置；菜单默认出现在它上方（下方放不下时出现在下方）
     @discardableResult
     static func show(items: [Item], in superview: NSView, anchor: CGRect,
-                     blending: NSVisualEffectView.BlendingMode, onSelect: @escaping (String) -> Void) -> WarmMenu {
-        let menu = WarmMenu(items: items, blending: blending)
+                     blending: NSVisualEffectView.BlendingMode, onSelect: @escaping (String) -> Void) -> GlassMenu {
+        let menu = GlassMenu(items: items, blending: blending)
         menu.onSelect = onSelect
         menu.catcher.frame = superview.bounds
         menu.catcher.onDismiss = { [weak menu] in menu?.close() }
@@ -392,7 +576,7 @@ final class WarmMenu: NSView {
         panel.frame = bounds
         addSubview(panel)
         for (index, item) in items.enumerated() {
-            let row = WarmMenuRow(item: item)
+            let row = GlassMenuRow(item: item)
             row.frame = CGRect(x: Self.inset, y: height - Self.inset - CGFloat(index + 1) * Self.rowHeight,
                                width: width - Self.inset * 2, height: Self.rowHeight)
             row.action = { [weak self] in
@@ -414,10 +598,10 @@ final class WarmMenu: NSView {
 }
 
 /// 菜单的一行：左侧勾选（杏色），右侧名称；悬停时圆角高亮
-private final class WarmMenuRow: WarmControl {
-    private let item: WarmMenu.Item
+private final class GlassMenuRow: GlassControl {
+    private let item: GlassMenu.Item
 
-    init(item: WarmMenu.Item) {
+    init(item: GlassMenu.Item) {
         self.item = item
         super.init(frame: .zero)
     }
@@ -434,7 +618,7 @@ private final class WarmMenuRow: WarmControl {
         }
         if item.isSelected {
             let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .bold)
-                .applying(.init(paletteColors: [WarmPalette.apricot]))
+                .applying(.init(paletteColors: [GlassPalette.accent]))
             if let check = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
                 check.draw(in: CGRect(x: 10, y: (bounds.height - check.size.height) / 2,
                                       width: check.size.width, height: check.size.height))

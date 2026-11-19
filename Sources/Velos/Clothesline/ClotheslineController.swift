@@ -57,15 +57,19 @@ final class ClotheslineController {
 
     /// 卡片里照片在屏幕上的位置（快速查看从这里放大出来、缩回这里）；绳子收着或这张不在绳上时为 nil
     private func photoFrame(of entry: ScreenshotHistory.Entry) -> CGRect? {
+        cardFrame(of: entry)?.insetBy(dx: CardFrame.inset, dy: CardFrame.inset)   // 照片在卡片里四周缩进 CardFrame.inset
+    }
+
+    /// 卡片本身（玻璃框的外沿，不算歪）在屏幕上的位置（全局坐标）
+    private func cardFrame(of entry: ScreenshotHistory.Entry) -> CGRect? {
         guard isRevealed, let panel, let box = model.hitRects[entry.url] else { return nil }
         // 卡片挂着是歪的，量到的是把歪卡片框住的那个正框（比卡片本身大一圈）：中心不变，按歪的角度算回卡片本身的大小
         let tilt = (model.items.first { $0.id == entry.url }?.tilt ?? 0) * .pi / 180
         let c = cos(tilt), s = abs(sin(tilt)), d = c * c - s * s
         let size = d > 0.5 ? CGSize(width: (box.width * c - box.height * s) / d, height: (box.height * c - box.width * s) / d) : box.size
         let card = CGRect(x: box.midX - size.width / 2, y: box.midY - size.height / 2, width: size.width, height: size.height)
-        // 卡片位置是窗口坐标（左上角为原点），换成屏幕坐标；照片在卡片里四周缩进 CardFrame.inset
+        // 卡片位置是窗口坐标（左上角为原点），换成屏幕坐标
         return CGRect(x: panel.frame.minX + card.minX, y: panel.frame.maxY - card.maxY, width: card.width, height: card.height)
-            .insetBy(dx: CardFrame.inset, dy: CardFrame.inset)
     }
 
     func start() {
@@ -170,7 +174,7 @@ final class ClotheslineController {
             AppIdentity.defaults.set(true, forKey: Self.introKey)
             let key = ClotheslineModifier.current.symbol
             let hotkey = Preferences.shared.clotheslineHotkey.displayString
-            self.model.coachingText = "截图、录屏会挂在这根绳子上\n以后按住 \(key) 把鼠标推到屏幕最上面（或按 \(hotkey)），它就会下来"
+            self.model.coachingText = "按住 \(key) 推到屏幕顶，或按 \(hotkey)"
             self.reveal(on: Self.screenUnderPointer(), onPurpose: true)
             Log.capture.notice("晾衣绳：第一次使用，放下来介绍一下")
             try? await Task.sleep(for: .seconds(9))
@@ -225,10 +229,12 @@ final class ClotheslineController {
     func showNextCapture(near rect: CGRect, image: CGImage? = nil, flies: Bool = false) {
         pendingPeekScreen = NSScreen.screen(containing: CGPoint(x: rect.midX, y: rect.midY)) ?? Self.screenUnderPointer()
         guard image != nil || flies else { return }
+        // 挂上就「叮」：紧跟在截图的「咔嚓」后面（和 Tendedero 的网站一样）
+        SoundEffects.play(.hang)
         if let image, let flight = ClotheslineFlight(image: image, from: rect) {
             // 每一张截图排一个队：连着截好几张时，每张都有自己飞的那一下，不会互相顶掉（以前后一张会把前一张顶掉，前一张就停在屏幕上了）
             waitingFlights.append(flight)
-            flight.snap()
+            flight.show()
             // 等了 4 秒还没写进去（例如写文件失败）：这一张原地淡掉
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self, weak flight] in
                 guard let self, let flight, let index = self.waitingFlights.firstIndex(where: { $0 === flight }) else { return }
@@ -242,8 +248,8 @@ final class ClotheslineController {
 
     // MARK: - 截图飞到绳上（动画见 ClotheslineFlight）
     //
-    // 顺序：截完 → 原位「咔嚓」一下被拎起来 → 写进「最近截图」、绳子放下来，新卡片从一开始就藏着 →
-    // 卡片排好后沿弧线飞过去 → 落到那里，真卡片出现
+    // 顺序（照 Tendedero 的网站）：截完，图原样停在原位 → 写进「最近截图」、绳子放下来，新卡片从一开始就藏着 →
+    // 卡片一排好就飞过去（0.65 秒，边飞边长出玻璃框和夹子）→ 落到那里，真卡片出现、轻轻晃一下
 
     /// 已经咔嚓拎起来、等着飞的截图（按截的先后）
     private var waitingFlights: [ClotheslineFlight] = []
@@ -251,33 +257,44 @@ final class ClotheslineController {
     private var waitingRecordings: [CGRect] = []
 
     /// 新卡片已经在绳上（藏着）：飞过去，落下后真卡片出现
-    /// - Parameter region: 录屏录的那块区域（截图用不上：截图的图在截的时候就已经在原位了）
-    private func fly(_ flight: ClotheslineFlight?, recordedIn region: CGRect = .zero, to id: URL) {
-        guard let item = model.items.first(where: { $0.id == id }), let target = photoFrame(of: item.entry) else {
+    /// - Parameters:
+    ///   - region: 录屏录的那块区域（截图用不上：截图的图在截的时候就已经在原位了）
+    ///   - attempts: 卡片还没排好（量不到位置）时再等一帧，最多等几次
+    private func fly(_ flight: ClotheslineFlight?, recordedIn region: CGRect = .zero, to id: URL, attempts: Int = 8) {
+        guard let item = model.items.first(where: { $0.id == id }), let target = cardFrame(of: item.entry) else {
+            if attempts > 0, isRevealed {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+                    self?.fly(flight, recordedIn: region, to: id, attempts: attempts - 1)
+                }
+                return
+            }
             // 卡片没排出来（例如绳子已经收起）：原地淡掉
             flight?.fadeAway()
             if model.flyingID == id { model.flyingID = nil }
             return
         }
-        let tilt = item.tilt
-        if let flight { return launch(flight, to: target, tilt: tilt, id: id) }
-        // 录屏：现在才有第一帧，在录的那块区域原位咔嚓一下再飞（不知道区域时从屏幕中间）
-        guard let image = item.thumb.cgImage(forProposedRect: nil, context: nil, hints: nil),
-              let recording = ClotheslineFlight(image: image, from: region) else {
+        // 录屏没取出画面时的退路：现在才有第一帧，从录的那块区域出来（不知道区域时从屏幕中间）
+        guard let flight = flight ?? item.thumb.cgImage(forProposedRect: nil, context: nil, hints: nil)
+                .flatMap({ ClotheslineFlight(image: $0, from: region) }) else {
             if model.flyingID == id { model.flyingID = nil }
             return
         }
-        recording.snap()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in self?.launch(recording, to: target, tilt: tilt, id: id) }
-    }
-
-    private func launch(_ flight: ClotheslineFlight, to target: CGRect, tilt: Double, id: URL) {
-        flight.fly(to: target, cornerRadius: CardFrame.radius - CardFrame.inset, tilt: tilt) { [weak self] in
-            guard let self else { return }
-            // 先让真卡片出现，飞的那张下一帧再收掉
-            // 真卡片在下面 0.16 秒淡入、飞的这张在上面淡出；落下的这张自己轻轻晃一下（见 PeggedView.land）。
-            // 截图、录屏刚响过快门 / 结束提示音，落下时不再另响（和 Tendedero 一样）
-            if self.model.flyingID == id { self.model.flyingID = nil }
+        flight.show()
+        // 飞的途中每一帧再量一次卡片的位置，卡片挪了就跟过去：落下时一定正好盖在它上面
+        let tracker = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self, weak flight] timer in
+            MainActor.assumeIsolated {
+                guard let self, let flight, self.model.flyingID == id,
+                      let entry = self.model.items.first(where: { $0.id == id })?.entry,
+                      let now = self.cardFrame(of: entry) else { return timer.invalidate() }
+                flight.retarget(now)
+            }
+        }
+        RunLoop.main.add(tracker, forMode: .common)
+        flight.fly(to: target, tilt: item.tilt) { [weak self] in
+            tracker.invalidate()
+            // 真卡片出现（飞的这张在上面淡掉），落下的这张自己轻轻晃一下（见 PeggedView.land）
+            guard let self, self.model.flyingID == id else { return }
+            self.model.flyingID = nil
         }
     }
 
@@ -457,7 +474,8 @@ final class ClotheslineController {
         // 绳子滑下来、卡片都挂好（约 0.6 秒）后再拿掉，你能看清是哪一张走了
         DispatchQueue.main.asyncAfter(deadline: .now() + (wasRevealed ? 0.1 : 0.7)) { [weak self] in
             self?.removingDeleted = false
-            if ScreenshotHistory.shared.pruneDeletedFiles() > 0 { SoundEffects.play(.takeDown) }
+            // 文件不在了的卡片悄悄掉下去，不响（和 Tendedero 一样）：删的那一下访达自己已经响过了
+            ScreenshotHistory.shared.pruneDeletedFiles()
         }
     }
 
@@ -489,13 +507,13 @@ final class ClotheslineController {
         if let screen = pendingPeekScreen {
             pendingPeekScreen = nil
             peek(on: screen)
+            // 剪贴板、访达挂上来的（不飞）：挂上就「叮」一声；飞的在截完时已经响过
+            if flyingID == nil && nextFlight == nil { SoundEffects.play(.hang) }
             if let flyingID {
-                // 等绳子滑下来、新卡片排好位置再飞
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fly(nextFlight, recordedIn: recordingRegion, to: flyingID) }
-            } else if let nextFlight {
-                nextFlight.fadeAway()   // 没有新卡片可落（不该发生）：原地淡掉
+                // 绳子开始放下来、新卡片一排好就飞（和网站一样，只等一帧）
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in self?.fly(nextFlight, recordedIn: recordingRegion, to: flyingID) }
             } else {
-                SoundEffects.play(.hang)   // 不飞的（剪贴板、访达挂上来的，没有快门声）：挂上就「叮」一声
+                nextFlight?.fadeAway()   // 没有新卡片可落（不该发生）：原地淡掉
             }
         }
     }

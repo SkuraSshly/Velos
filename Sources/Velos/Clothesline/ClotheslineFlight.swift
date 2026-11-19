@@ -1,24 +1,32 @@
-// 截图飞到绳上的想法来自 Tendedero（https://github.com/alejandrobujan/tendedero）的 CaptureFlight，
-// Copyright (c) 2026 Alejandro Buján，MIT 许可证（全文见仓库根目录 THIRD_PARTY_NOTICES.md）。
-// 这里按 Velos 的需要重写：「咔嚓」的闪白 + 拎起，再沿弧线飞过去，全部用 Core Animation（显卡画，顺滑）。
+// 截图飞到绳上的动画照 Tendedero（App：https://github.com/alejandrobujan/tendedero 的 CaptureFlight；
+// 网站：https://tendedero.app 的 js/line.js 里的 fly），Copyright (c) 2026 Alejandro Buján，MIT 许可证
+// （全文见仓库根目录 THIRD_PARTY_NOTICES.md）。
+// 时长、曲线、弧度、圆角和边框怎么长出来都和网站一样；画面用 Velos 卡片自己的玻璃框和夹子，落下时和真卡片一模一样。
 
 import AppKit
-import QuartzCore
+import SwiftUI
 
 /// 截图（录屏）飞到晾衣绳上的那一下。
 ///
-/// 1. 咔嚓：截下来的那块先闪一下白（像相机快门），图同时被「拎起来」：稍微缩小、影子变大，带一点弹性
-/// 2. 等绳子放下来、新卡片排好位置（图在空中轻轻停着，不会僵住不动）
-/// 3. 沿一条往上拱的弧线飞到卡片的位置，边飞边缩到卡片的大小、圆角，落下时真卡片出现、这张淡掉
+/// 1. 截完：截下来的图原样停在原位（截整个屏幕时全屏闪一下白），等绳子放下来、新卡片排好位置
+/// 2. 飞：0.65 秒，先慢后快再慢（easeInOutCubic），往上拱一点（最高 30 点）；
+///    一边飞一边变成卡片的大小，照片四周长出卡片的玻璃框、圆角，后半程夹子和框淡入，同时转到卡片挂着的角度
+/// 3. 到了：真卡片出现，飞的这张在上面 0.16 秒淡掉，卡片轻轻晃一下
 ///
-/// 用一块和屏幕一样大的透明窗口当画布，图是窗口里的一个图层：图层动画由显卡做，比一帧帧改窗口大小顺滑得多。
-/// 窗口不接收鼠标，飞完就关掉。
+/// 用一块和屏幕一样大的透明窗口当画布（不接收鼠标），每一帧按进度画（SwiftUI 的 TimelineView，跟着屏幕刷新）。
 @MainActor
 final class ClotheslineFlight {
     private let window: NSPanel
     private let screen: NSScreen
-    private let imageLayer = CALayer()
-    private let flashLayer = CALayer()
+    private let state: FlightState
+
+    /// 最长在屏幕上停多久：不管发生什么（没写进去、绳子没放下来、动画没回调），到点一定收掉，绝不会一直停在屏幕上
+    private static let maxLifetime: TimeInterval = 6
+    /// 飞多久（和网站一样）
+    static let duration: TimeInterval = 0.65
+    private var finished = false
+    /// 飞完、收掉窗口之前自己拉着自己：不然没人拿着它时会被提前释放，窗口就再也没人关，图一直停在屏幕上（还点不到）
+    private var keepAlive: ClotheslineFlight?
 
     /// - Parameters:
     ///   - image: 截下来的图
@@ -32,6 +40,10 @@ final class ClotheslineFlight {
             let height = width * CGFloat(image.height) / CGFloat(max(image.width, 1))
             start = CGRect(x: screen.frame.midX - width / 2, y: screen.frame.midY - height / 2, width: width, height: height)
         }
+        // 截了整个屏幕：全屏闪一下白（网站上也是只有截整个屏幕时才闪）
+        let wholeScreen = start.width >= screen.frame.width - 2 && start.height >= screen.frame.height - 2
+        state = FlightState(image: NSImage(cgImage: image, size: start.size), from: Self.local(start, in: screen),
+                            flashes: wholeScreen)
         window = NSPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         window.isOpaque = false
         window.backgroundColor = .clear
@@ -40,223 +52,167 @@ final class ClotheslineFlight {
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
-        let canvas = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
-        canvas.wantsLayer = true
-        window.contentView = canvas
-
-        let local = Self.local(start, in: screen)
-        imageLayer.frame = local
-        imageLayer.cornerRadius = 6
-        imageLayer.masksToBounds = false
-        imageLayer.shadowColor = NSColor.black.cgColor
-        imageLayer.shadowOpacity = 0
-        imageLayer.shadowRadius = 4
-        imageLayer.shadowOffset = CGSize(width: 0, height: -2)
-        // 图本身要切圆角（阴影在外面）：放一个子图层画图
-        let picture = CALayer()
-        picture.contents = image
-        picture.contentsGravity = .resize
-        picture.frame = imageLayer.bounds
-        picture.cornerRadius = 6
-        picture.masksToBounds = true
-        picture.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        imageLayer.addSublayer(picture)
-        flashLayer.frame = imageLayer.bounds
-        flashLayer.backgroundColor = NSColor.white.cgColor
-        flashLayer.cornerRadius = 6
-        flashLayer.opacity = 0
-        flashLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-        imageLayer.addSublayer(flashLayer)
-        canvas.layer?.addSublayer(imageLayer)
+        let host = NSHostingView(rootView: FlightView(state: state))
+        host.frame = CGRect(origin: .zero, size: screen.frame.size)
+        window.contentView = host
     }
 
+    /// 全局坐标（原点在左下角）→ 画布里的坐标（原点在左上角，和 SwiftUI 一样）
     private static func local(_ rect: CGRect, in screen: NSScreen) -> CGRect {
-        CGRect(x: rect.minX - screen.frame.minX, y: rect.minY - screen.frame.minY, width: rect.width, height: rect.height)
+        CGRect(x: rect.minX - screen.frame.minX, y: screen.frame.maxY - rect.maxY, width: rect.width, height: rect.height)
     }
 
-    // MARK: - 1. 咔嚓
+    // MARK: - 1. 截完
 
-    /// 最长在屏幕上停多久：不管发生什么（没写进去、绳子没放下来、动画没回调），到点一定收掉，绝不会一直停在屏幕上
-    private static let maxLifetime: TimeInterval = 6
-    private var finished = false
-    /// 飞完、收掉窗口之前自己拉着自己：不然没人拿着它时会被提前释放，窗口就再也没人关，图一直停在屏幕上（还点不到）
-    private var keepAlive: ClotheslineFlight?
-
-    /// 「拎起」那一下的弹簧（有一点回弹）
-    private static let liftSpring = Spring(stiffness: 220, damping: 14, longest: 0.85)
-    /// 飞过去的弹簧：和拎起是同一种弹簧，只是阻尼刚好不回弹（不会冲过卡片再退回来）
-    /// 越软飞得越慢：49 的弹簧起步从容；但弹簧最后一段会拖很久慢慢挪，
-    /// 所以只用前 0.7 秒、并把它拉伸成正好在 0.7 秒到位：前面不变，落下时还带着一点速度，不会磨蹭
-    private static let flySpring = Spring(stiffness: 49, damping: 14, longest: 0.7)
-    /// 什么时候开始拎起的：起飞时算出这一刻缩到了多少，从这里接着动，不会跳一下
-    private var snappedAt = CACurrentMediaTime()
-
-    /// 闪白 + 拎起（立刻开始，0.3 秒）
-    func snap() {
+    /// 截下来的图出现在原位（和屏幕上一模一样，看不出来），截整个屏幕时闪一下白
+    func show() {
+        guard keepAlive == nil, !finished else { return }   // 已经在屏幕上了
         keepAlive = self
-        snappedAt = CACurrentMediaTime()
         window.orderFrontRegardless()
+        if state.flashes { state.flashStart = Date() }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.maxLifetime) { [self] in
             guard !finished else { return }
             Log.capture.notice("晾衣绳：飞的截图超时，收掉")
-            self.fadeAway()
+            fadeAway()
         }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
-        let flash = CAKeyframeAnimation(keyPath: "opacity")
-        flash.values = [0, 0.85, 0]
-        flash.keyTimes = [0, 0.12, 1]
-        flash.duration = 0.32
-        flash.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeIn)]
-        flashLayer.add(flash, forKey: "flash")
-
-        // 拎起：缩到 92%，带一点回弹；影子同时变大变深
-        let lift = Self.liftSpring.animation("transform.scale", from: 1, to: 0.92)
-        imageLayer.transform = CATransform3DMakeScale(0.92, 0.92, 1)
-        imageLayer.add(lift, forKey: "lift")
-
-        let shadow = CABasicAnimation(keyPath: "shadowOpacity")
-        shadow.fromValue = 0
-        shadow.toValue = 0.35
-        shadow.duration = 0.25
-        imageLayer.shadowOpacity = 0.35
-        imageLayer.shadowRadius = 18
-        imageLayer.shadowOffset = CGSize(width: 0, height: -8)
-        imageLayer.add(shadow, forKey: "shadow")
-        CATransaction.commit()
     }
 
-    // MARK: - 2、3. 飞过去
+    // MARK: - 2. 飞过去
 
-    /// 沿弧线飞到 target（全局坐标，卡片里照片的位置），落下后调用 landed
-    ///
-    /// 和拎起用同一种弹簧：起步时轻轻加速、快到时慢慢停稳。位置、大小、角度、圆角、影子全按同一条弹簧曲线走，
-    /// 弧线也是按这条曲线一点点算出来的，所以飞的过程是一整个动作，不会某一部分先到、某一部分后到。
+    /// 飞到 target（全局坐标，卡片本身的位置：玻璃框的外沿，不算歪），落下后调用 landed
     /// - Parameter tilt: 卡片挂着歪的角度（度，顺时针为正）：飞到时也歪成一样，接上真卡片不会跳一下
-    func fly(to target: CGRect, cornerRadius: CGFloat, tilt: Double = 0, landed: @escaping () -> Void) {
-        // 拎起的弹簧可能还在轻轻晃：算出这一刻缩到多少，从这里接着飞（不读屏幕上正在显示的那一帧，那个值有时是空的）
-        let elapsed = CACurrentMediaTime() - snappedAt
-        let scale = 1 + (0.92 - 1) * Self.liftSpring.progress(at: elapsed)
-        imageLayer.removeAnimation(forKey: "lift")
-        let startPosition = imageLayer.position
-        let startBounds = imageLayer.bounds
-        let end = Self.local(target, in: screen)
-        let endPosition = CGPoint(x: end.midX, y: end.midY)
-
-        // 往上拱的弧线：控制点在两点连线中间、再往上一些（绳子在屏幕顶上，弧线自然地「抛」上去）
-        let control = CGPoint(x: (startPosition.x + endPosition.x) / 2,
-                              y: max(startPosition.y, endPosition.y) + min(160, abs(endPosition.x - startPosition.x) * 0.25 + 60))
-        let spring = Self.flySpring
-        let duration = spring.longest
-        // 每 1/120 秒取一个点，每个点走到几成由弹簧决定（拉伸到最后正好 100%）。
-        // 位置、大小、角度、圆角、影子全用这同一组点，整个动作一起起步、一起落下
-        let steps = Int(duration * 120)
-        let progress: [Double] = (0...steps).map { spring.fitted(at: duration * Double($0) / Double(steps)) }
-        func frames(_ keyPath: String, _ value: (Double) -> Any) -> CAKeyframeAnimation {
-            let animation = CAKeyframeAnimation(keyPath: keyPath)
-            animation.values = progress.map(value)
-            animation.duration = duration
-            animation.calculationMode = .linear
-            return animation
+    func fly(to target: CGRect, tilt: Double, landed: @escaping () -> Void) {
+        state.to = Self.local(target, in: screen)
+        state.tilt = tilt
+        state.flyStart = Date()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.duration) { [self] in
+            guard !finished else { return }
+            landed()
+            // 真卡片已经在下面出现：这张在上面淡掉
+            fadeAway(duration: 0.16)
         }
-        func mix(_ a: CGFloat, _ b: CGFloat, _ t: Double) -> CGFloat { a + (b - a) * CGFloat(t) }
-
-        // 拎起时缩小的部分平滑回到 100%（大小由 bounds 决定），同时转到卡片的角度
-        // （屏幕坐标 y 朝上，逆时针为正：SwiftUI 里顺时针的 tilt 这里取负）
-        let angle = -CGFloat(tilt) * .pi / 180
-        let finalTransform = CATransform3DMakeRotation(angle, 0, 0, 1)
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        CATransaction.setCompletionBlock { [self] in
-            MainActor.assumeIsolated {
-                landed()
-                // 真卡片在下面淡入，这张在上面同时淡出（0.16 秒，和 Picline 一样）
-                fadeAway(duration: 0.16)
-            }
-        }
-        let move = frames("position") { t in
-            let u = 1 - t
-            return NSValue(point: CGPoint(x: u * u * startPosition.x + 2 * u * t * control.x + t * t * endPosition.x,
-                                          y: u * u * startPosition.y + 2 * u * t * control.y + t * t * endPosition.y))
-        }
-        let resize = frames("bounds") { t in
-            NSValue(rect: CGRect(x: 0, y: 0, width: mix(startBounds.width, end.width, t), height: mix(startBounds.height, end.height, t)))
-        }
-        let unscale = frames("transform") { t in
-            let k = mix(scale, 1, t)
-            return NSValue(caTransform3D: CATransform3DScale(CATransform3DMakeRotation(mix(0, angle, t), 0, 0, 1), k, k, 1))
-        }
-        let shadow = frames("shadowOpacity") { t in Float(mix(0.35, 0.18, t)) }
-
-        imageLayer.position = endPosition
-        imageLayer.bounds = CGRect(origin: .zero, size: end.size)
-        imageLayer.transform = finalTransform
-        imageLayer.shadowOpacity = 0.18
-        imageLayer.add(move, forKey: "move")
-        imageLayer.add(resize, forKey: "resize")
-        imageLayer.add(unscale, forKey: "unscale")
-        imageLayer.add(shadow, forKey: "shadowFly")
-        for sub in imageLayer.sublayers ?? [] {
-            let from = sub.cornerRadius
-            let radius = frames("cornerRadius") { t in mix(from, cornerRadius, t) }
-            sub.cornerRadius = cornerRadius
-            sub.add(radius, forKey: "radius")
-        }
-        CATransaction.commit()
     }
 
-    /// 没地方落（绳子收起了、卡片没排出来）：原地淡掉
+    /// 飞的途中卡片又挪了（旁边的卡片让位、绳子还在往下滑）：改飞到新的位置
+    func retarget(_ target: CGRect) {
+        let local = Self.local(target, in: screen)
+        if local != state.to { state.to = local }
+    }
+
+    /// 没地方落（绳子收起了、卡片没排出来）：原地淡掉；落下后也用它淡掉
     func fadeAway(duration: TimeInterval = 0.2) {
         guard !finished else { return }
-        NSAnimationContext.runAnimationGroup({ $0.duration = duration; window.animator().alphaValue = 0 },
-                                            completionHandler: { [self] in MainActor.assumeIsolated { finish() } })
-    }
-
-    /// 真卡片已经出现：下一帧再收掉这张（中间不会空一下）
-    private func finish() {
-        guard !finished else { return }
         finished = true
-        DispatchQueue.main.async { [self] in
-            window.orderOut(nil)
-            window.close()
-            keepAlive = nil
-        }
+        NSAnimationContext.runAnimationGroup({ $0.duration = duration; window.animator().alphaValue = 0 },
+                                            completionHandler: { [self] in
+            MainActor.assumeIsolated {
+                window.orderOut(nil)
+                window.close()
+                keepAlive = nil
+            }
+        })
     }
 }
 
-/// 弹簧（质量 1）：系统的弹簧动画，加上「某一时刻走到了几成」的算法，好让弧线、接着拎起往下飞都和它对得上
-private struct Spring {
-    let stiffness: Double
-    let damping: Double
-    /// 最多动多久：系统算的停稳时间偏保守（最后一大段都是看不出来的微动），截掉那段，到那时已经走完 99.8% 以上
-    let longest: CFTimeInterval
+/// 飞的这张现在的状态（画面按它和当前时间算）
+@MainActor
+final class FlightState: ObservableObject {
+    let image: NSImage
+    let from: CGRect
+    let flashes: Bool
+    @Published var to: CGRect = .zero
+    @Published var tilt: Double = 0
+    @Published var flyStart: Date?
+    @Published var flashStart: Date?
 
-    func animation(_ keyPath: String, from: Any, to: Any) -> CASpringAnimation {
-        let spring = CASpringAnimation(keyPath: keyPath)
-        spring.mass = 1
-        spring.stiffness = stiffness
-        spring.damping = damping
-        spring.fromValue = from
-        spring.toValue = to
-        spring.duration = min(spring.settlingDuration, longest)
-        return spring
+    init(image: NSImage, from: CGRect, flashes: Bool) {
+        self.image = image
+        self.from = from
+        self.flashes = flashes
     }
 
-    /// 前 longest 秒的弹簧拉伸成正好在 longest 秒走到 100%（不要最后那段拖很久的慢慢挪）
-    func fitted(at t: Double) -> Double {
-        min(1, progress(at: t) / progress(at: longest))
+    /// 飞了几成（0…1）
+    func progress(at date: Date) -> Double {
+        guard let flyStart else { return 0 }
+        return min(1, max(0, date.timeIntervalSince(flyStart) / ClotheslineFlight.duration))
     }
 
-    /// 从静止出发，t 秒时走到了几成（0 → 1，回弹时会稍微超过 1）
-    func progress(at t: Double) -> Double {
-        let omega = stiffness.squareRoot()
-        let zeta = damping / (2 * omega)
-        if zeta < 1 {
-            let omegaD = omega * (1 - zeta * zeta).squareRoot()
-            return 1 - exp(-zeta * omega * t) * (cos(omegaD * t) + zeta * omega / omegaD * sin(omegaD * t))
+    /// 还要不要一帧一帧地画（没飞、没闪的时候不画，不占资源）
+    func isAnimating(at date: Date) -> Bool {
+        if let flyStart, date.timeIntervalSince(flyStart) < ClotheslineFlight.duration + 0.05 { return true }
+        if let flashStart, date.timeIntervalSince(flashStart) < 0.5 { return true }
+        return false
+    }
+}
+
+/// 飞的那张卡片：和绳上的卡片同一套玻璃框、夹子，按进度长出来
+struct FlightView: View {
+    @ObservedObject var state: FlightState
+
+    var body: some View {
+        TimelineView(.animation(paused: !state.isAnimating(at: Date()))) { context in
+            ZStack(alignment: .topLeading) {
+                card(at: state.progress(at: context.date))
+                flash(at: context.date)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        return 1 - (1 + omega * t) * exp(-omega * t)   // 刚好不回弹（临界阻尼）
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private func card(at raw: Double) -> some View {
+        let k = Self.easeInOutCubic(raw)
+        let chrome = Self.smooth(k, from: 0.35, to: 1)
+        let from = state.from, to = state.flyStart == nil ? state.from : state.to
+        let width = Self.lerp(from.width, to.width, k)
+        let height = Self.lerp(from.height, to.height, k)
+        let centerX = Self.lerp(from.midX, to.midX, k)
+        let top = Self.lerp(from.minY, to.minY, k) - sin(.pi * k) * 30   // 往上拱一点
+        let inset = CardFrame.inset * k
+        let radius = CardFrame.radius * k
+        let photoShape = RoundedRectangle(cornerRadius: max(0, radius - inset), style: .continuous)
+
+        ZStack(alignment: .top) {
+            // 玻璃框和影子：后半程淡入
+            Color.clear
+                .glassFrame(cornerRadius: radius)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 5)
+                .opacity(chrome)
+            Image(nsImage: state.image)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: max(1, width - inset * 2), height: max(1, height - inset * 2))
+                .clipShape(photoShape)
+                .overlay(photoShape.strokeBorder(Color.white.opacity(0.18 * chrome), lineWidth: 0.5))
+                .padding(inset)
+            // 夹子：和绳上一样，露出卡片上沿 14 点
+            Clothespin()
+                .offset(y: -14)
+                .opacity(chrome)
+        }
+        .frame(width: width, height: height)
+        .rotationEffect(.degrees(state.tilt * k))
+        .position(x: centerX, y: top + height / 2)
+    }
+
+    /// 截整个屏幕时全屏闪一下白：0.85 → 0，0.45 秒
+    @ViewBuilder
+    private func flash(at date: Date) -> some View {
+        if let start = state.flashStart {
+            let t = date.timeIntervalSince(start) / 0.45
+            if t < 1 {
+                Color.white.opacity(0.85 * (1 - Self.easeOut(t)))
+            }
+        }
+    }
+
+    // 和网站 util.js 里的同名函数一样
+    static func lerp(_ a: CGFloat, _ b: CGFloat, _ t: Double) -> CGFloat { a + (b - a) * CGFloat(t) }
+    static func easeInOutCubic(_ x: Double) -> Double { x < 0.5 ? 4 * x * x * x : 1 - pow(-2 * x + 2, 3) / 2 }
+    static func easeOut(_ x: Double) -> Double { 1 - pow(1 - min(1, max(0, x)), 3) }
+    static func smooth(_ x: Double, from a: Double, to b: Double) -> Double {
+        let t = min(1, max(0, (x - a) / (b - a)))
+        return t * t * (3 - 2 * t)
     }
 }

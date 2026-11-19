@@ -180,7 +180,6 @@ final class PinView: NSView {
             // 第一次布局：窗口大小 / 原始大小 = 当前比例（钉图可能被缩小显示，之后的缩放从这里算起）
             zoom = longAxis == .horizontal ? bounds.height / capture.pointSize.height : bounds.width / capture.pointSize.width
             zoomKnown = true
-            if longAxis != nil { showIndicator("滚轮翻看，⌥ + 滚轮缩放") }
         }
         scrollOffset = min(max(scrollOffset, 0), maxScroll)
         CATransaction.begin()
@@ -398,7 +397,7 @@ final class PinView: NSView {
         menu.addItem(opacityItem)
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "关闭（双击 / Esc）", action: #selector(closePin), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "关闭", action: #selector(closePin), keyEquivalent: "").target = self
         return menu
     }
 

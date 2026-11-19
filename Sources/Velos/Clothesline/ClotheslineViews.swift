@@ -48,6 +48,9 @@ enum ClotheslineLayout {
     /// 照片间隔 spacing 居中挂。多于放得下的：保留数量设成 25 / 50 / 100 时间隔不变，最新的停在满绳时最后一张的位置，
     /// 往左滚动（scroll）看更早的；否则（挂在更宽的屏幕上）挤近一点，不超出屏幕。
     /// 前 pinned 张是钉住的：能滚动时留在左头不动，其余在它们后面滚
+    /// 量卡片位置用的坐标（绳子挂好时和窗口坐标一样，左上角为原点）
+    static let space = "clothesline"
+
     static func x(index: Int, count: Int, width: CGFloat, visible: Int, scroll: CGFloat, pinned: Int = 0) -> CGFloat {
         if keep > 0 && count > visible {
             let newest = width / 2 + CGFloat(visible - 1) * spacing / 2
@@ -139,6 +142,9 @@ struct ClotheslineView: View {
                         .transition(.opacity)
                 }
             }
+            // 卡片的位置在这个坐标里量：不跟着绳子滑下来 / 收上去的那段动画走，量到的始终是挂好时的位置
+            // （截图飞过来时绳子还在往下滑，量窗口坐标会量到半空中，飞过头）
+            .coordinateSpace(name: ClotheslineLayout.space)
             .animation(.spring(response: 0.55, dampingFraction: 0.78), value: items.map(\.id))
             .animation(.spring(response: 0.55, dampingFraction: 0.78), value: items.map(\.pinned))
             .animation(.easeInOut(duration: 0.3), value: items.isEmpty)
@@ -219,7 +225,7 @@ private struct Knot: View {
 private struct CatchSlot: View {
     var body: some View {
         RoundedRectangle(cornerRadius: CardFrame.radius - CardFrame.inset, style: .continuous)
-            .strokeBorder(Color(nsColor: WarmPalette.apricot), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+            .strokeBorder(Color(nsColor: GlassPalette.accent), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CardFrame.radius - CardFrame.inset, style: .continuous))
             .overlay(
                 Text("松手挂上")
@@ -254,11 +260,9 @@ struct PeggedView: View {
         }
         .rotationEffect(.degrees(swing + item.tilt), anchor: .top)
         .offset(y: arrived ? 0 : -46)
-        // 截图还在飞过来：先藏着，飞到了再出现（不要渐变，飞过来的那张正好盖在这里）
+        // 截图还在飞过来：先藏着，飞到了直接出现（飞过来的那张和它一模一样，正好盖在上面，再在上面淡掉）
         .opacity(arrived && model.flyingID != item.id ? 1 : 0)
         .transaction { if model.flyingID == item.id { $0.animation = nil } }
-        // 飞到了：真卡片 0.16 秒淡入（飞的那张同时在上面淡出），然后自己轻轻晃一下
-        .animation(.easeOut(duration: 0.16), value: model.flyingID == item.id)
         .onChange(of: model.flyingID == item.id) { was, now in if was && !now { land() } }
         .onAppear(perform: arrive)
         .onChange(of: model.gust) { _, _ in breeze() }
@@ -321,7 +325,7 @@ struct PeggedView: View {
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color(nsColor: WarmPalette.apricot))
+                        .foregroundStyle(.white, Color(nsColor: GlassPalette.accent))
                         .font(.system(size: 17, weight: .semibold))
                         .padding(5)
                         .allowsHitTesting(false)
@@ -349,7 +353,7 @@ struct PeggedView: View {
                         }
                         .foregroundStyle(on ? Color.white : Color.primary)
                         .frame(width: frame.width, height: frame.height)
-                        .background(on ? Circle().fill(Color(nsColor: WarmPalette.apricot)) : nil)
+                        .background(on ? Circle().fill(Color(nsColor: GlassPalette.accent)) : nil)
                         .glassFrame(circle: true)
                         .position(x: frame.midX, y: frame.midY)
                         .opacity(hovering && !dragging && model.gifProgress[item.id] == nil ? 1 : 0)
@@ -377,7 +381,7 @@ struct PeggedView: View {
             .onHover { motion.hovering = $0 }
             .background(
                 GeometryReader { g in
-                    Color.clear.preference(key: HitRectsKey.self, value: [item.id: g.frame(in: .global)])
+                    Color.clear.preference(key: HitRectsKey.self, value: [item.id: g.frame(in: .named(ClotheslineLayout.space))])
                 }
             )
     }
@@ -431,7 +435,9 @@ enum CardFrame {
 }
 
 extension View {
-    /// 清透的玻璃框：系统的磨砂材质加一圈从上往下打光的细边
+    /// 晾衣绳卡片（和卡片上的按钮、飞过来的那张）的玻璃：静止的透明玻璃——薄薄一层磨砂 + 上亮下淡的清楚亮边。
+    /// 不用系统的液态玻璃：卡片一直在晃、在飞、被拖动，液态玻璃会跟着不停地折射、流动，
+    /// 靠得近的几块还会融到一起，看着像在冒泡；静止的玻璃动起来也是干净的
     func glassFrame(cornerRadius: CGFloat = 0, circle: Bool = false, capsule: Bool = false) -> some View {
         let shape: AnyShape = circle ? AnyShape(Circle())
             : capsule ? AnyShape(Capsule())
@@ -460,6 +466,7 @@ struct Clothespin: View {
 
     private let metal = LinearGradient(
         stops: [
+            // 铝色的夹子（像 Mac 的机身）
             .init(color: Color(red: 0.93, green: 0.70, blue: 0.52), location: 0),
             .init(color: Color(red: 1.00, green: 0.88, blue: 0.76), location: 0.35),
             .init(color: Color(red: 0.96, green: 0.78, blue: 0.62), location: 0.65),

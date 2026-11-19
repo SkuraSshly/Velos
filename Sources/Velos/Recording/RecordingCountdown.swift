@@ -11,12 +11,11 @@ final class RecordingCountdown: NSPanel {
 
     private let card = FrostedPanel(cornerRadius: 34, blending: .behindWindow)
     private let numberLabel = NSTextField(labelWithString: "")
-    private let hintLabel = NSTextField(labelWithString: "Esc 取消 · Enter 立即开始")
     private var remaining: Int
     private var timer: Timer?
     private var completion: ((Outcome) -> Void)?
     private let hotkey: Hotkey
-    private static let cardSize = CGSize(width: 190, height: 150)
+    private static let cardSize = CGSize(width: 140, height: 140)
     /// 卡片周围留出画投影的空间：要比投影的范围大，否则投影被窗口边缘截断，会看到一圈淡淡的方框
     private static let shadowInset: CGFloat = 40
 
@@ -46,12 +45,8 @@ final class RecordingCountdown: NSPanel {
         numberLabel.font = roundedFont(ofSize: 64, weight: .bold, monospacedDigits: true)
         numberLabel.alignment = .center
         numberLabel.wantsLayer = true
-        numberLabel.frame = CGRect(x: 0, y: 46, width: size.width, height: 80)
+        numberLabel.frame = CGRect(x: 0, y: 28, width: size.width, height: 80)
         card.addSubview(numberLabel)
-        hintLabel.font = roundedFont(ofSize: 11, weight: .medium)
-        hintLabel.alignment = .center
-        hintLabel.frame = CGRect(x: 0, y: 20, width: size.width, height: 16)
-        card.addSubview(hintLabel)
         applyColors()
     }
 
@@ -88,9 +83,8 @@ final class RecordingCountdown: NSPanel {
     }
 
     private func applyColors() {
-        let palette = WarmPalette(for: card)
+        let palette = GlassPalette(for: card)
         numberLabel.textColor = palette.ink
-        hintLabel.textColor = palette.secondaryInk
     }
 
     /// 结束倒计时（完成或取消），关闭窗口后回调

@@ -33,11 +33,11 @@ final class PermissionManager: ObservableObject {
         if mic != microphoneStatus { microphoneStatus = mic }
     }
 
-    /// 截图 / 录屏开始前调用：有权限返回 true；没有则弹出权限引导并返回 false（不会崩溃或静默失败）
+    /// 截图 / 录屏开始前调用：有权限返回 true；没有则打开设置 › 通用（授权按钮在那里）并返回 false（不会崩溃或静默失败）
     func ensureScreenRecording() -> Bool {
         refresh()
         if screenRecordingGranted { return true }
-        SettingsLauncher.openOnboarding()
+        SettingsLauncher.openPermissions()
         return false
     }
 

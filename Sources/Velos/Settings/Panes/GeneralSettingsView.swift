@@ -1,6 +1,7 @@
+import AVFoundation
 import SwiftUI
 
-/// 通用：开机自启、菜单栏图标、声音、删除文件、更新、权限状态（保存位置在「截图」「录屏」里）
+/// 通用：启动、声音、删除文件、更新、权限（保存位置在「截图」「录屏」里）
 struct GeneralSettingsView: View {
     @ObservedObject private var prefs = Preferences.shared
     @ObservedObject private var permissions = PermissionManager.shared
@@ -9,61 +10,40 @@ struct GeneralSettingsView: View {
     var body: some View {
         SettingsPane {
             SettingsSection(title: "启动") {
-                SettingsRow(icon: "power", tint: .apricot, title: "登录时自动启动 Velos", caption: launchCaption, isFirst: true) {
+                SettingsRow(title: "登录时打开", caption: launchAtLogin.lastError) {
                     HStack(spacing: 8) {
                         if launchAtLogin.requiresApproval {
                             Button("去允许") { launchAtLogin.openSystemSettings() }
-                                .buttonStyle(WarmButtonStyle())
+                                .buttonStyle(CapsuleButtonStyle())
                         }
-                        Toggle("", isOn: launchAtLoginBinding).toggleStyle(WarmSwitchStyle()).labelsHidden()
+                        Toggle("", isOn: launchAtLoginBinding).toggleStyle(GlassSwitchStyle()).labelsHidden()
                     }
                 }
-                SwitchRow(icon: "menubar.rectangle", tint: .chipCocoa, title: "显示菜单栏图标",
-                          caption: "隐藏后通过快捷键使用；再次打开 Velos 应用即可回到这里。", isOn: $prefs.showMenuBarIcon)
-                SwitchRow(icon: "dock.rectangle", tint: .chipSky, title: "在程序坞显示图标",
-                          caption: "点程序坞里的图标打开设置；右键可以截图、录屏、截屏翻译。", isOn: $prefs.showDockIcon)
+                SwitchRow(title: "菜单栏图标", isOn: $prefs.showMenuBarIcon)
+                SwitchRow(title: "程序坞图标", isOn: $prefs.showDockIcon)
             }
 
             SettingsSection(title: "操作") {
-                SwitchRow(icon: "speaker.wave.2", tint: .chipHoney, title: "声音",
-                          caption: "截图、录屏、晾衣绳操作时的提示音（系统自带，不会录进视频）。",
-                          isFirst: true, isOn: $prefs.soundEffects)
+                SwitchRow(title: "提示音", isOn: $prefs.soundEffects)
                 // 删除录屏、删除存好的截图（晾衣绳卡片上的删除、录屏缩略图上的删除）都按这个来
-                SettingsRow(icon: "trash", tint: .chipRose, title: "删除文件时",
-                            caption: prefs.recordingDeleteForever
-                                ? "⚠️ 文件直接删掉，不进废纸篓，没法找回。"
-                                : "删错了可以从废纸篓里放回来。") {
-                    WarmSegmented(options: [(false, "放入废纸篓"), (true, "永久删除")],
+                SettingsRow(title: "删除文件") {
+                    GlassSegmented(options: [(false, "放入废纸篓"), (true, "永久删除")],
                                   selection: $prefs.recordingDeleteForever, segmentWidth: 84)
                 }
             }
 
-            SettingsSection(title: "更新",
-                            footer: "检查更新只会去 GitHub 问一次最新的版本号，不发送任何关于你或你的截图的信息。不打开自动检查时，Velos 只在你点「检查更新」时联网。") {
-                SettingsRow(icon: "arrow.down.circle", tint: .chipSage, title: "检查更新",
-                            caption: "现在是 \(UpdateChecker.currentVersion)", isFirst: true) {
+            SettingsSection(title: "更新") {
+                SettingsRow(title: "Velos \(UpdateChecker.currentVersion)") {
                     Button("检查更新") { UpdateChecker.shared.checkNow() }
-                        .buttonStyle(WarmButtonStyle())
+                        .buttonStyle(CapsuleButtonStyle())
                 }
-                SwitchRow(icon: "clock.arrow.2.circlepath", tint: .chipHoney, title: "自动检查更新",
-                          caption: "每天一次；有新版本时提示一次（同一个版本不重复提示）。", isOn: $prefs.autoCheckUpdates)
+                SwitchRow(title: "自动检查", isOn: $prefs.autoCheckUpdates)
             }
 
-            SettingsSection(title: "系统权限") {
-                SettingsRow(icon: "rectangle.dashed.badge.record", tint: .chipLavender, title: "屏幕与系统录音",
-                            caption: "截图、录屏都需要", isFirst: true) {
-                    StatusBadge(ok: permissions.screenRecordingGranted,
-                                text: permissions.screenRecordingGranted ? "已授权" : "未授权")
-                }
-                SettingsRow(icon: "mic.fill", tint: .chipRose, title: "麦克风", caption: "可选，只在录制麦克风时使用") {
-                    StatusBadge(ok: permissions.microphoneGranted, text: permissions.microphoneGranted ? "已授权" : "未授权")
-                }
-                SettingsRow(icon: "lock.shield", tint: .chipSage, title: "权限设置", caption: "查看授权步骤，或重新授权") {
-                    Button("打开…") { OnboardingWindowController.show(over: SettingsWindowController.currentWindow) }
-                        .buttonStyle(WarmButtonStyle())
-                }
+            SettingsSection(title: "权限") {
+                SettingsRow(title: "屏幕录制") { screenRecordingButtons }
+                SettingsRow(title: "麦克风") { microphoneButton }
             }
-
         }
         .onAppear {
             permissions.refresh()
@@ -75,9 +55,36 @@ struct GeneralSettingsView: View {
         }
     }
 
-    private var launchCaption: String? {
-        if launchAtLogin.requiresApproval { return "需要在系统设置中允许 Velos 作为登录项。" }
-        return launchAtLogin.lastError
+    /// 屏幕录制：没授权是「授权」（第一次弹系统对话框，之后跳到系统设置）；授权了是「取消授权」（跳到系统设置里关掉）。
+    /// 在系统设置里打开后往往要重启 Velos 才生效：请求过还没生效时多一个「重新启动」
+    @ViewBuilder private var screenRecordingButtons: some View {
+        if permissions.screenRecordingGranted {
+            Button("取消授权") { permissions.openSystemSettings(.screenRecording) }
+                .buttonStyle(CapsuleButtonStyle())
+        } else {
+            HStack(spacing: 8) {
+                if permissions.needsRelaunchHint {
+                    Button("重新启动") { permissions.relaunch() }
+                        .buttonStyle(CapsuleButtonStyle())
+                }
+                Button("授权", action: permissions.requestScreenRecording)
+                    .buttonStyle(CapsuleButtonStyle(prominent: true))
+            }
+        }
+    }
+
+    /// 麦克风：没决定过弹系统对话框；拒绝过、要取消都只能去系统设置
+    @ViewBuilder private var microphoneButton: some View {
+        switch permissions.microphoneStatus {
+        case .authorized:
+            Button("取消授权") { permissions.openSystemSettings(.microphone) }
+                .buttonStyle(CapsuleButtonStyle())
+        case .restricted:
+            StatusBadge(ok: false, text: "受系统限制")
+        default:
+            Button("授权", action: permissions.requestMicrophone)
+                .buttonStyle(CapsuleButtonStyle(prominent: true))
+        }
     }
 
     /// 开关以系统里的真实状态为准：注册失败时开关会自动弹回原位，并显示原因
@@ -87,53 +94,34 @@ struct GeneralSettingsView: View {
             set: { launchAtLogin.setEnabled($0) }
         )
     }
-
 }
 
-/// 保存文件夹：路径 + 更改 / 在访达中打开 / 恢复默认
+/// 保存文件夹：路径（点一下在访达中打开）+ 更改；改过的话多一个恢复默认
 struct FolderRow: View {
     let kind: SaveLocation.Kind
-    let icon: String
-    let tint: Color
-    let title: String
     @Binding var path: String
-    var isFirst = false
 
     var body: some View {
-        SettingsRow(icon: icon, tint: tint, title: title, isFirst: isFirst, titleDetail: AnyView(pathTag)) {
+        SettingsRow(title: "保存到") {
             HStack(spacing: 6) {
+                Button { SaveLocation.revealInFinder(kind) } label: {
+                    Text((path as NSString).abbreviatingWithTildeInPath)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.inkSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: 180, alignment: .trailing)
+                .help("在访达中打开")
                 if path != SaveLocation.defaultDirectory(for: kind).path {
                     Button("恢复默认") { path = SaveLocation.defaultDirectory(for: kind).path }
-                        .buttonStyle(WarmButtonStyle())
+                        .buttonStyle(CapsuleButtonStyle())
                 }
-                Button("打开") { SaveLocation.revealInFinder(kind) }
-                    .buttonStyle(WarmButtonStyle())
-                    .help("在访达中打开\(kind.title)文件夹")
                 Button("更改…", action: choose)
-                    .buttonStyle(WarmButtonStyle())
+                    .buttonStyle(CapsuleButtonStyle())
             }
         }
-    }
-
-    /// 路径做成可点的小标签：点一下在访达中打开
-    private var pathTag: some View {
-        Button { SaveLocation.revealInFinder(kind) } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "folder.fill").font(.system(size: 10))
-                Text((path as NSString).abbreviatingWithTildeInPath)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Image(systemName: "arrow.up.forward").font(.system(size: 8, weight: .bold))
-            }
-            .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundStyle(Color.warmSecondary)
-            .padding(.horizontal, 8)
-            .frame(height: 20)
-            .background(Capsule().fill(Color.warmTrack))
-        }
-        .buttonStyle(.plain)
-        .frame(maxWidth: 230, alignment: .leading)
-        .help("在访达中打开 \(path)")
     }
 
     private func choose() {

@@ -38,7 +38,7 @@ struct TranslationView: View {
         .frame(maxWidth: model.isFreeSized ? .infinity : nil, maxHeight: model.isFreeSized ? .infinity : nil, alignment: .top)
         .fixedSize(horizontal: false, vertical: !model.isFreeSized)
         .fontDesign(.rounded)
-        .tint(.apricot)
+        .tint(.accent)
         .background(WarmWindowBackground())
         .ignoresSafeArea()   // 标题栏是隐藏的，不留出它的位置
         .translationTask(model.configuration) { session in
@@ -51,7 +51,7 @@ struct TranslationView: View {
     private var header: some View {
         HStack(spacing: 6) {
             LanguageMenu(title: model.sourceChoice != nil ? model.sourceLanguage.displayName
-                         : model.isRecognizing ? "自动检测" : "自动检测 · \(model.sourceLanguage.displayName)",
+                         : model.isRecognizing ? "自动检测" : model.sourceLanguage.displayName,
                          help: "原文语言") {
                 Button("自动检测") { model.sourceChoice = nil }
                 Divider()
@@ -64,10 +64,10 @@ struct TranslationView: View {
                     .font(.system(size: 11, weight: .bold))
                     .frame(width: 26, height: 24)
             }
-            .buttonStyle(WarmIconButtonStyle())
+            .buttonStyle(GlassIconButtonStyle())
             .help("交换语言")
             LanguageMenu(title: model.targetLanguage.displayName, help: "目标语言") {
-                Button("自动（中文 → 英文，其他 → 简体中文）") { model.targetChoice = nil }
+                Button("自动") { model.targetChoice = nil }
                 Divider()
                 ForEach(LanguageRules.appleSupported, id: \.self) { language in
                     Button(language.displayName) { model.targetChoice = language }
@@ -80,7 +80,7 @@ struct TranslationView: View {
                     .rotationEffect(.degrees(model.isPinned ? 0 : 45))
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(WarmIconButtonStyle(active: model.isPinned))
+            .buttonStyle(GlassIconButtonStyle(active: model.isPinned))
             .help(model.isPinned ? "取消钉住（⌘P）" : "钉住：置顶、点别处不关闭，可拖动、调整大小（⌘P）")
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: model.isPinned)
             Button(action: onClose) {
@@ -88,7 +88,7 @@ struct TranslationView: View {
                     .font(.system(size: 11, weight: .bold))
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(WarmIconButtonStyle())
+            .buttonStyle(GlassIconButtonStyle())
             .help("关闭（Esc）")
         }
         .frame(height: 30)
@@ -109,7 +109,7 @@ struct TranslationView: View {
             } else {
                 TextEditor(text: $model.sourceText)
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.warmInk)
+                    .foregroundStyle(Color.ink)
                     .scrollContentBackground(.hidden)
                     .scrollIndicators(model.isFreeSized || Self.height(of: model.sourceText, max: .infinity) > 180 ? .automatic : .never)
                     .frame(height: model.isFreeSized ? nil : Self.height(of: model.sourceText, max: 180))
@@ -120,9 +120,11 @@ struct TranslationView: View {
                 speakButton(model.sourceText, language: model.sourceLanguage, id: "source")
                 copyButton(model.sourceText, hint: "已复制原文")
                 Spacer()
-                Text(model.isRecognizing ? "正在识别…" : "原文 · \(model.sourceLanguage.displayName)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.warmSecondary)
+                if model.isRecognizing {
+                    Text("正在识别…")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.inkSecondary)
+                }
             }
         }
     }
@@ -130,7 +132,7 @@ struct TranslationView: View {
     // MARK: - 译文
 
     private var translationCard: some View {
-        Card(tint: Color.apricot.opacity(0.08)) {
+        Card(tint: Color.accent.opacity(0.08)) {
             Group {
                 switch model.status {
                 case .idle, .checking, .translating:
@@ -153,8 +155,8 @@ struct TranslationView: View {
             .font(.system(size: 14))
             if let notice = model.engineNotice {
                 Label(notice, systemImage: "arrow.triangle.branch")
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(Color.apricot)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.accent)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 4) {
@@ -184,14 +186,14 @@ struct TranslationView: View {
             Button("设置翻译引擎…") { SettingsLauncher.open(.translate) }
         } label: {
             HStack(spacing: 3) {
-                Text(model.engine == .apple ? "Apple 翻译 · 离线" : model.engine.displayName)
+                Text(model.engine.displayName)
                 Image(systemName: "chevron.down").font(.system(size: 7.5, weight: .bold))
             }
-            .font(.system(size: 11, weight: .medium, design: .rounded))
-            .foregroundStyle(Color.warmSecondary)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.inkSecondary)
             .padding(.horizontal, 7)
             .frame(height: 20)
-            .background(Capsule().fill(Color.warmTrack.opacity(0.7)))
+            .background(Capsule().fill(Color.glassTrack.opacity(0.7)))
             .contentShape(Capsule())
         }
         .menuStyle(.button)
@@ -204,7 +206,7 @@ struct TranslationView: View {
     private var translationText: some View {
         ScrollView {
             Text(model.translation)
-                .foregroundStyle(Color.warmInk)
+                .foregroundStyle(Color.ink)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -216,7 +218,7 @@ struct TranslationView: View {
     private func message(_ text: String, symbol: String) -> some View {
         Label(text, systemImage: symbol)
             .font(.system(size: 12.5))
-            .foregroundStyle(Color.warmSecondary)
+            .foregroundStyle(Color.inkSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -230,14 +232,9 @@ struct TranslationView: View {
             } label: {
                 Label("复制原文和译文", systemImage: "doc.on.doc")
             }
-            .buttonStyle(WarmButtonStyle())
+            .buttonStyle(CapsuleButtonStyle())
             .disabled(model.translation.isEmpty)
             Spacer()
-            if let time = model.recognitionTime {
-                Text(String(format: "识别 %.2f 秒", Double(time.components.attoseconds) / 1e18 + Double(time.components.seconds)))
-                    .font(.system(size: 10.5, design: .rounded))
-                    .foregroundStyle(Color.warmSecondary)
-            }
         }
     }
 
@@ -250,7 +247,7 @@ struct TranslationView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 26, height: 22)
         }
-        .buttonStyle(WarmIconButtonStyle(active: speaking))
+        .buttonStyle(GlassIconButtonStyle(active: speaking))
         .help(speaking ? "停止朗读" : "朗读")
         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
@@ -261,7 +258,7 @@ struct TranslationView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 26, height: 22)
         }
-        .buttonStyle(WarmIconButtonStyle())
+        .buttonStyle(GlassIconButtonStyle())
         .help("复制")
         .disabled(text.isEmpty)
     }
@@ -286,7 +283,7 @@ private struct PlaceholderLines: View {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(widths.indices, id: \.self) { index in
                     Capsule()
-                        .fill(Color.warmTrack)
+                        .fill(Color.glassTrack)
                         .frame(width: TranslationView.cardTextWidth * widths[index], height: 9)
                 }
             }
@@ -307,8 +304,8 @@ private struct DictionaryCard: View {
         Card(tint: Color.chipSky.opacity(0.06)) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(entry.headword)
-                    .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.warmInk)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.ink)
                     .textSelection(.enabled)
                 ForEach(entry.phonetics.indices, id: \.self) { index in
                     phonetic(entry.phonetics[index], id: "phonetic-\(index)")
@@ -320,7 +317,7 @@ private struct DictionaryCard: View {
                 VStack(alignment: .leading, spacing: 5) {
                     if !part.name.isEmpty {
                         Text(part.name)
-                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                            .font(.system(size: 10.5, weight: .semibold))
                             .foregroundStyle(Color.chipSky)
                             .padding(.horizontal, 7)
                             .frame(height: 18)
@@ -330,17 +327,17 @@ private struct DictionaryCard: View {
                         let sense = part.senses[number]
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(number + 1).")
-                                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Color.warmSecondary)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.inkSecondary)
                                 .frame(width: 16, alignment: .trailing)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(sense.gloss)
                                     .font(.system(size: 13))
-                                    .foregroundStyle(Color.warmInk)
+                                    .foregroundStyle(Color.ink)
                                 if let example = sense.example {
                                     Text(example)
                                         .font(.system(size: 11.5))
-                                        .foregroundStyle(Color.warmSecondary)
+                                        .foregroundStyle(Color.inkSecondary)
                                 }
                             }
                             .fixedSize(horizontal: false, vertical: true)
@@ -348,12 +345,6 @@ private struct DictionaryCard: View {
                         }
                     }
                 }
-            }
-            HStack {
-                Spacer()
-                Text("词典 · macOS 自带")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.warmSecondary)
             }
         }
     }
@@ -366,15 +357,15 @@ private struct DictionaryCard: View {
         } label: {
             HStack(spacing: 4) {
                 if !phonetic.label.isEmpty {
-                    Text(phonetic.label).font(.system(size: 11, weight: .semibold, design: .rounded))
+                    Text(phonetic.label).font(.system(size: 11, weight: .semibold))
                 }
                 Text("/\(phonetic.text)/").font(.system(size: 12))
                 Image(systemName: speaking ? "stop.fill" : "speaker.wave.2.fill").font(.system(size: 9.5, weight: .semibold))
             }
-            .foregroundStyle(speaking ? Color.white : Color.warmInk)
+            .foregroundStyle(speaking ? Color.white : Color.ink)
             .padding(.horizontal, 8)
             .frame(height: 22)
-            .background(Capsule().fill(speaking ? AnyShapeStyle(Color.apricot) : AnyShapeStyle(Color.warmTrack)))
+            .background(Capsule().fill(speaking ? AnyShapeStyle(Color.accent) : AnyShapeStyle(Color.glassTrack)))
         }
         .buttonStyle(.plain)
         .help("朗读（\(phonetic.label.isEmpty ? "普通话" : phonetic.label + "式发音")）")
@@ -395,10 +386,10 @@ private struct Card<Content: View>: View {
         .padding(.bottom, 8)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.warmCard)
+                .fill(Color.settingsCard)
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tint))
         )
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.warmHairline, lineWidth: 0.5))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
     }
 }
 
@@ -416,11 +407,11 @@ private struct LanguageMenu<Items: View>: View {
                 Text(title).lineLimit(1)
                 Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold))
             }
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .foregroundStyle(Color.warmInk)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(Color.ink)
             .padding(.horizontal, 10)
             .frame(height: 24)
-            .background(Capsule().fill(Color.warmTrack))
+            .background(Capsule().fill(Color.glassTrack))
             .contentShape(Capsule())
         }
         .menuStyle(.button)
@@ -432,16 +423,16 @@ private struct LanguageMenu<Items: View>: View {
 }
 
 /// 小图标按钮：平时透明，悬停 / 按下时暖色底；active 时杏色
-struct WarmIconButtonStyle: ButtonStyle {
+struct GlassIconButtonStyle: ButtonStyle {
     var active = false
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(active ? Color.white : Color.warmInk)
+            .foregroundStyle(active ? Color.white : Color.ink)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(active ? AnyShapeStyle(Color.apricot)
-                                 : AnyShapeStyle(Color.warmTrack.opacity(configuration.isPressed ? 1.6 : 0.8)))
+                    .fill(active ? AnyShapeStyle(Color.accent)
+                                 : AnyShapeStyle(Color.glassTrack.opacity(configuration.isPressed ? 1.6 : 0.8)))
             )
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)

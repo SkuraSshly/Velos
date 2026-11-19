@@ -61,7 +61,7 @@ final class MagnifierView: NSView {
             bands.addRect(CGRect(x: center, y: 0, width: p, height: side))
             bands.addRect(CGRect(x: 0, y: center, width: side, height: p))
             crosshairLayer.path = bands
-            crosshairLayer.fillColor = WarmPalette.apricot.withAlphaComponent(0.3).cgColor
+            crosshairLayer.fillColor = GlassPalette.accent.withAlphaComponent(0.3).cgColor
             container.addSublayer(crosshairLayer)
 
             // 中心像素的方框：白线 + 深色描边，在任何颜色上都看得清
@@ -70,7 +70,7 @@ final class MagnifierView: NSView {
             centerBoxLayer.fillColor = nil
             centerBoxLayer.strokeColor = NSColor.white.cgColor
             centerBoxLayer.lineWidth = 1.5
-            centerBoxLayer.shadowColor = NSColor(srgbRed: 0.2, green: 0.12, blue: 0.06, alpha: 1).cgColor
+            centerBoxLayer.shadowColor = GlassPalette.shadow.cgColor
             centerBoxLayer.shadowOpacity = 1
             centerBoxLayer.shadowRadius = 0.6
             centerBoxLayer.shadowOffset = .zero
@@ -78,9 +78,9 @@ final class MagnifierView: NSView {
         }
         addSubview(zoomView)
 
-        // 信息区：坐标 + 颜色圆点 + 颜色值（暖棕色、圆润等宽数字，移动时不跳动）
+        // 信息区：坐标 + 颜色圆点 + 颜色值（墨色、圆润等宽数字，移动时不跳动）
         let font = roundedFont(ofSize: 11.5, weight: .semibold, monospacedDigits: true)
-        let ink = WarmPalette(for: self).ink
+        let ink = GlassPalette(for: self).ink
         for label in [coordinateLabel, colorLabel] {
             label.font = font
             label.textColor = ink
@@ -140,7 +140,7 @@ final class MagnifierView: NSView {
         if let copiedHex {
             colorLabel.stringValue = "已复制 \(copiedHex)"
         } else {
-            colorLabel.stringValue = "\(currentHex)   C 复制"
+            colorLabel.stringValue = currentHex
         }
     }
 

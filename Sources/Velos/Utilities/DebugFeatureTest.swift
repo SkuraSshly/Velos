@@ -142,18 +142,8 @@ enum DebugFeatureTest {
         SettingsWindowController.show(.general)
         try? await Task.sleep(for: .milliseconds(300))
 
-        // 从设置窗口打开权限设置：放在设置窗口正中间，跟着设置窗口移动；关闭设置窗口时一起关
-        OnboardingWindowController.show(over: window)
-        try? await Task.sleep(for: .milliseconds(800))
-        let child = OnboardingWindowController.debugWindow
-        check("从设置打开权限设置：在设置窗口正中间", child.map {
-            abs($0.frame.midX - window.frame.midX) <= 1 && abs($0.frame.midY - window.frame.midY) <= 1 && $0.frame.width > 300
-        } == true, "\(String(describing: child?.frame)) / \(window.frame)")
-        check("权限设置窗口跟着设置窗口移动", child?.parent === window)
-        check("权限设置窗口也可以被截到", child.map { ScreenFreezer.capturableOwnWindows.contains(CGWindowID($0.windowNumber)) } == true)
         window.close()
         try? await Task.sleep(for: .milliseconds(500))
-        check("关闭设置窗口时权限设置一起关闭", OnboardingWindowController.debugWindow == nil && child?.isVisible != true)
     }
 
     private static func hk(_ code: Int, _ modifiers: Int) -> Hotkey {

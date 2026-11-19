@@ -250,9 +250,9 @@ final class ThumbnailView: NSView, NSDraggingSource {
     }
 }
 
-/// 缩略图上的圆形小按钮（温暖磨砂风格）：奶油色毛玻璃小圆 + 暖棕色图标，悬停时略微加深。
+/// 缩略图上的圆形小按钮（温暖磨砂风格）：白色毛玻璃小圆 + 墨色图标，悬停时略微加深。
 /// 第一下点击就生效，不需要先激活窗口。
-final class ThumbnailButton: WarmControl {
+final class ThumbnailButton: GlassControl {
     static let size: CGFloat = 26
     private let panel = FrostedPanel(blending: .withinWindow, shadowRadius: 5)
     private let highlight = NSView()

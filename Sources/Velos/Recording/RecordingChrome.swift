@@ -17,7 +17,7 @@ final class RecordingControlBar: NSPanel {
     private let timeLabel = NSTextField(labelWithString: "00:00")
     /// 熄屏、锁屏时自动暂停的说明（「屏幕熄灭时自动暂停了」）；没有时隐藏
     private let noteLabel = NSTextField(labelWithString: "")
-    private let separator = WarmSeparator()
+    private let separator = GlassSeparator()
     private let pauseButton = ToolbarButton(symbol: "pause.fill", help: "暂停")
     private let microphoneButton = ToolbarButton(symbol: "mic.fill", help: "麦克风静音")
     private let stopButton: PillButton
@@ -25,7 +25,7 @@ final class RecordingControlBar: NSPanel {
 
     init(manager: RecordingManager) {
         self.manager = manager
-        stopButton = PillButton(title: "停止", symbol: "stop.fill", color: WarmPalette.coral,
+        stopButton = PillButton(title: "停止", symbol: "stop.fill", color: GlassPalette.hot,
                                 help: "停止录制（\(CaptureCoordinator.shared.recordingHotkey.displayString)）")
         super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         level = .statusBar
@@ -77,14 +77,14 @@ final class RecordingControlBar: NSPanel {
     func refresh() {
         guard let manager else { return }
         let paused = manager.isPaused
-        dot.layer?.backgroundColor = (paused ? WarmPalette.apricot : OverlayAccent.recording).cgColor
+        dot.layer?.backgroundColor = (paused ? GlassPalette.accent : OverlayAccent.recording).cgColor
         pauseButton.setSymbol(paused ? "play.fill" : "pause.fill")
         pauseButton.toolTip = paused ? "继续录制" : "暂停录制"
         let note = manager.autoPauseNote
         if noteLabel.stringValue != (note ?? "") || noteLabel.isHidden != (note == nil) {
             noteLabel.stringValue = note ?? ""
             noteLabel.isHidden = note == nil
-            noteLabel.textColor = WarmPalette(for: bar).secondaryInk
+            noteLabel.textColor = GlassPalette(for: bar).secondaryInk
             relayout()
         }
 
@@ -105,8 +105,8 @@ final class RecordingControlBar: NSPanel {
     private func refreshTime() {
         guard let manager else { return }
         let text = DurationFormat.clock(manager.elapsed)
-        let palette = WarmPalette(for: bar)
-        timeLabel.textColor = manager.isPaused ? WarmPalette.apricot : palette.ink
+        let palette = GlassPalette(for: bar)
+        timeLabel.textColor = manager.isPaused ? GlassPalette.accent : palette.ink
         if timeLabel.stringValue != text {
             let lengthChanged = timeLabel.stringValue.count != text.count
             timeLabel.stringValue = text
@@ -193,7 +193,7 @@ private final class DragArea: NSView {
         guard let hit = super.hitTest(point) else { return nil }
         var view: NSView? = hit
         while let current = view, current !== self {
-            if current is WarmControl { return hit }
+            if current is GlassControl { return hit }
             view = current.superview
         }
         return self
@@ -263,7 +263,7 @@ final class RecordingFrameWindow: NSPanel {
     private func updateStyle() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        shape.strokeColor = (isPaused ? WarmPalette.apricot : OverlayAccent.recording).cgColor
+        shape.strokeColor = (isPaused ? GlassPalette.accent : OverlayAccent.recording).cgColor
         shape.lineDashPattern = isPaused ? [7, 5] : nil
         CATransaction.commit()
     }

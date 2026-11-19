@@ -26,7 +26,7 @@ final class EditorZoomView: NSScrollView {
         }
     }
 
-    /// 图片下面的暖色「桌面」：浅色模式是奶咖色，深色模式是深可可色，和图片明显区分开
+    /// 图片下面的「桌面」：浅色模式是浅灰，深色模式是深灰，和图片明显区分开
     static let deskColor = NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(srgbRed: 0.16, green: 0.13, blue: 0.11, alpha: 1)
@@ -45,8 +45,8 @@ final class EditorZoomView: NSScrollView {
         contentView.drawsBackground = true
         contentView.backgroundColor = Self.deskColor
         // 长截图一直显示滚动条（竖着长的在右边、横着长的在下面），暖色圆角滑块，不需要时自动隐藏
-        verticalScroller = WarmScroller()
-        horizontalScroller = WarmScroller()
+        verticalScroller = GlassScroller()
+        horizontalScroller = GlassScroller()
         hasVerticalScroller = true
         hasHorizontalScroller = true
         autohidesScrollers = true
@@ -268,7 +268,7 @@ final class CenteringClipView: NSClipView {
 }
 
 /// 暖色滚动条：透明的轨道，杏色圆角滑块（鼠标放上去更明显）
-final class WarmScroller: NSScroller {
+final class GlassScroller: NSScroller {
     private var hovering = false { didSet { needsDisplay = true } }
 
     override class var isCompatibleWithOverlayScrollers: Bool { false }
@@ -291,7 +291,7 @@ final class WarmScroller: NSScroller {
         let rect = vertical
             ? CGRect(x: knob.midX - thickness / 2, y: knob.minY + 3, width: thickness, height: knob.height - 6)
             : CGRect(x: knob.minX + 3, y: knob.midY - thickness / 2, width: knob.width - 6, height: thickness)
-        WarmPalette.apricot.withAlphaComponent(hovering ? 0.95 : 0.7).setFill()
+        GlassPalette.accent.withAlphaComponent(hovering ? 0.95 : 0.7).setFill()
         NSBezierPath(roundedRect: rect, xRadius: thickness / 2, yRadius: thickness / 2).fill()
     }
 

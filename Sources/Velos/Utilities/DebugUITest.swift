@@ -112,9 +112,6 @@ enum DebugUITest {
         check("悬停时显示放大镜", session.debugMagnifierVisible)
         render("1-悬停窗口B")
         try? await Task.sleep(for: .milliseconds(200))
-        if let hintFrame = session.debugHintFrame {
-            await captureComposite(around: hintFrame.insetBy(dx: -20, dy: -16), to: dir.appendingPathComponent("0-提示条实际显示.png"))
-        }
         // 真实合成结果：等窗口服务器把这一帧画到屏幕上，再截取放大镜附近的区域
         try? await Task.sleep(for: .milliseconds(300))
         Log.capture.notice("图层顺序：\(session.debugLayerOrder, privacy: .public)")
@@ -205,10 +202,10 @@ enum DebugUITest {
                                to: dir.appendingPathComponent("5b-选区与尺寸标签实际显示.png"))
 
         // 13. 切到全屏再切回来，选区保留；全屏模式也能长截图
-        session.toggleMode()
+        session.setMode(session.mode == .region ? .fullscreen : .region)
         session.debugToolbarRefresh()
         check("全屏模式「长截图」可用", session.debugToolbar.debugLongCaptureEnabled == true)
-        session.toggleMode()
+        session.setMode(session.mode == .region ? .fullscreen : .region)
         check("全屏切回区域后保留选区", local(selector.selection) == CGRect(x: 100, y: 100, width: 200, height: 150))
         if ProcessInfo.processInfo.environment["VELOS_UITEST_PAUSE"] != nil {
             Log.capture.notice("自测暂停，便于检查内存")
@@ -367,7 +364,7 @@ enum DebugUITest {
                     check("长截图编辑窗口：按宽度原大小打开、只显示一部分", long.debugCanvas.frame.width == 300 && z.frame.height < 3000
                           && z.minMagnification < 1, "\(long.debugCanvas.frame) \(z.frame)")
                     check("长截图编辑窗口：从最上面看起", abs(visible.maxY - (3000 + AnnotationEditorWindowController.margin * 2)) < 1, "\(visible)")
-                    check("长截图编辑窗口：右边有暖色滚动条，下面没有", z.verticalScroller is WarmScroller
+                    check("长截图编辑窗口：右边有暖色滚动条，下面没有", z.verticalScroller is GlassScroller
                           && z.verticalScroller?.isHidden == false && z.horizontalScroller?.isHidden != false,
                           "竖 \(String(describing: z.verticalScroller?.isHidden)) 横 \(String(describing: z.horizontalScroller?.isHidden))")
                     let canvasInWindow = long.debugCanvas.convert(long.debugCanvas.bounds, to: nil)
@@ -1571,7 +1568,7 @@ enum DebugUITest {
             try? await Task.sleep(for: .milliseconds(300))
             var area = optionsBar.frame
             if let menuFrame = optionsBar.debugMenuFrame { area = area.union(menuFrame) }
-            check("麦克风下拉菜单为自绘的温暖风格菜单", optionsBar.debugMenuFrame != nil)
+            check("麦克风下拉菜单为自绘的温暖磨砂风格菜单", optionsBar.debugMenuFrame != nil)
             await captureComposite(around: window.convertToScreen(host.convert(area.insetBy(dx: -24, dy: -24), to: nil)),
                                    to: dir.appendingPathComponent("10c-录制选项条与菜单实际显示.png"))
             optionsBar.removeFromSuperview()
@@ -1923,10 +1920,10 @@ enum DebugUITest {
         session.debugSetStyle(AnnotationStyle())
 
         // 全屏模式：工具栏在屏幕底部中央，标注保留
-        session.toggleMode()
+        session.setMode(session.mode == .region ? .fullscreen : .region)
         check("全屏模式工具栏在底部中央", abs(toolbar.frame.midX - (toolbar.superview?.bounds.midX ?? 0)) < 2 && toolbar.frame.minY < 60,
               "\(toolbar.frame)")
-        session.toggleMode()
+        session.setMode(session.mode == .region ? .fullscreen : .region)
         check("切换模式后标注保留", annotator.document.annotations.count == 12, "\(annotator.document.annotations.count) 个")
     }
 
@@ -2287,14 +2284,13 @@ enum DebugRecordingTest {
         let scale = screen.backingScaleFactor
         func g(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: o.x + x, y: o.y + y) }
         let option2 = key(kVK_ANSI_S, .option, "ß")
+        let fullS = key(kVK_ANSI_S, [.option, .shift], "Í")   // ⌥⇧S：全屏录屏
 
         // 1. 选区界面
         coordinator.beginRecording()
         try? await Task.sleep(for: .milliseconds(600))
         guard let session = coordinator.debugRecordingSession else { return check("⌥S 打开录屏选区", false) }
         check("⌥S 打开录屏选区（每块屏幕一个遮罩）", session.debugOverlayCount == NSScreen.screens.count)
-        check("提示条：区域录屏", session.debugHintText.hasPrefix("区域录屏 · ⌥S 切换全屏 · Enter 开始 · Esc 取消"),
-              session.debugHintText)
 
         // 2. 拖出选区 → 选项条出现在选区下方
         session.overlayMouseDown(at: g(100, 100))
@@ -2306,9 +2302,11 @@ enum DebugRecordingTest {
         let bar = session.debugOptionsBar
         check("选项条出现在选区下方", bar.superview != nil && bar.frame.maxY <= 100 - 4, "\(bar.frame)")
 
-        // 3. ⌥S 在区域 / 全屏之间切换，选区保留；忽略按住不放的重复
-        _ = session.overlayKeyDown(option2)
-        check("⌥S 切到全屏录屏", session.mode == .fullscreen && session.debugHintText.hasPrefix("全屏录屏 · ⌥S 切换区域"))
+        // 3. ⌥⇧S 切到全屏、⌥S 切回区域，选区保留；忽略按住不放的重复
+        _ = session.overlayKeyDown(fullS)
+        check("⌥⇧S 切到全屏录屏", session.mode == .fullscreen)
+        _ = session.overlayKeyDown(fullS)
+        check("全屏时再按 ⌥⇧S 还是全屏（不来回切）", session.mode == .fullscreen)
         check("全屏模式选项条在底部中央", abs(bar.frame.midX - (bar.superview?.bounds.midX ?? 0)) < 2, "\(bar.frame)")
         let repeatEvent = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: .option, timestamp: 0, windowNumber: 0,
                                            context: nil, characters: "ß", charactersIgnoringModifiers: "s", isARepeat: true,
@@ -2510,7 +2508,7 @@ enum DebugRecordingTest {
         coordinator.beginRecording()
         try? await Task.sleep(for: .milliseconds(600))
         guard let full = coordinator.debugRecordingSession else { return check("全屏录制", false) }
-        _ = full.overlayKeyDown(option2)
+        _ = full.overlayKeyDown(fullS)
         _ = full.overlayKeyDown(key(kVK_Return))
         try? await Task.sleep(for: .seconds(3))
         let during = DebugUITest.footprintMB()

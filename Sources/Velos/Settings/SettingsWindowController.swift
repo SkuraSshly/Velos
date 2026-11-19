@@ -3,7 +3,7 @@ import SwiftUI
 
 /// 设置窗口左侧的栏目
 enum SettingsTab: String, CaseIterable {
-    case general, screenshot, recording, translate, clothesline, hotkeys, tips
+    case general, screenshot, recording, translate, clothesline, hotkeys
 
     var title: String {
         switch self {
@@ -13,30 +13,27 @@ enum SettingsTab: String, CaseIterable {
         case .recording: "录屏"
         case .translate: "截屏翻译"
         case .hotkeys: "快捷键"
-        case .tips: "小技巧"
         }
     }
 
     var symbol: String {
         switch self {
-        case .general: "gearshape.fill"
+        case .general: "gearshape"
         case .screenshot: "camera.viewfinder"
         case .clothesline: Glyph.clothesline
-        case .tips: "lightbulb.fill"
         case .recording: "record.circle"
-        case .translate: "character.bubble.fill"
-        case .hotkeys: "keyboard.fill"
+        case .translate: "character.bubble"
+        case .hotkeys: "command"
         }
     }
 
-    /// 侧栏图标小方块的颜色
+    /// 图标小方块的暖色（和 2.7 一样）
     var tint: Color {
         switch self {
         case .general: .chipCocoa
         case .screenshot: .chipSky
-        case .clothesline: .apricot
-        case .tips: .chipHoney
-        case .recording: .coral
+        case .clothesline: .accent
+        case .recording: .hot
         case .translate: .chipSage
         case .hotkeys: .chipLavender
         }
@@ -50,14 +47,14 @@ final class SettingsSelection: ObservableObject {
     @Published var hovered: SettingsTab?
 }
 
-/// 设置窗口：温暖磨砂风格（与截图工具栏一致）。左侧是栏目，杏色选中块在栏目之间弹性滑动；右侧是对应的设置。
+/// 设置窗口：温暖的奶油色磨砂（和图标、截图工具栏一套颜色）。左侧是栏目，选中块是杏色的液态玻璃、换栏目时流过去；右侧是对应的设置。
 /// 窗口大小固定，切换栏目时窗口不变（内容多的页面在右侧滚动），不会跳动。
 /// 窗口按需创建，关闭后整个控制器释放，不常驻内存。
 @MainActor
 final class SettingsWindowController: NSObject, NSWindowDelegate {
     private static var current: SettingsWindowController?
     /// 默认大小，也是最小大小（可以拖边缘调大、用绿色按钮缩放）
-    static let size = CGSize(width: 800, height: 600)
+    static let size = CGSize(width: 640, height: 460)
 
     private let window: NSWindow
     private let selection = SettingsSelection()
@@ -87,6 +84,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.allowFullScreen()
         window.backgroundColor = .clear
         window.isOpaque = false
+        // 设置窗口固定用浅色的奶油底（不跟随系统），其他窗口照常跟随系统
+        window.appearance = NSAppearance(named: .aqua)
 
         selection.tab = tab
         let root = SettingsRootView(selection: selection) { [weak self] tab in self?.select(tab) }
@@ -122,12 +121,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     private func select(_ tab: SettingsTab) {
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.8)) { selection.tab = tab }
+        guard tab != selection.tab else { return }
+        selection.tab = tab
         window.title = tab.title
     }
 
     func windowWillClose(_ notification: Notification) {
-        // 二级窗口（权限设置等）跟着一起关
+        // 二级窗口（选文件夹等）跟着一起关
         window.childWindows?.forEach { $0.close() }
         Self.current = nil
     }
@@ -141,7 +141,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     #endif
 }
 
-/// 左侧栏目 + 右侧设置
+/// 左侧栏目 + 右侧设置：整扇窗是一块磨砂，左边栏目、右边一组组半透明卡片
 private struct SettingsRootView: View {
     @ObservedObject var selection: SettingsSelection
     let onSelect: (SettingsTab) -> Void
@@ -149,30 +149,21 @@ private struct SettingsRootView: View {
     var body: some View {
         HStack(spacing: 0) {
             SettingsSidebar(selection: selection, onSelect: onSelect)
-                .frame(width: 196)
-            Rectangle().fill(Color.warmHairline).frame(width: 0.5)
-            VStack(alignment: .leading, spacing: 0) {
-                Text(selection.tab.title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.warmInk)
-                    .padding(.leading, 28)
-                    .padding(.top, 20)
-                    .padding(.bottom, 10)
-                    .transaction { $0.animation = nil }
-                ScrollView {
-                    page
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .scrollIndicators(.automatic)
-                .id(selection.tab)   // 换栏目时从顶部开始
-                .transition(.opacity.animation(.easeOut(duration: 0.18)))
+                .frame(width: 180)
+            Rectangle().fill(Color.hairline).frame(width: 0.5)
+            ScrollView {
+                page
+                    .padding(.top, 26)   // 让出透明标题栏
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .scrollIndicators(.automatic)
+            .id(selection.tab)   // 换栏目时从顶部开始
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .frame(minWidth: SettingsWindowController.size.width, maxWidth: .infinity,
                minHeight: SettingsWindowController.size.height, maxHeight: .infinity)
         .fontDesign(.rounded)
-        .tint(.apricot)
+        .tint(.accent)
         .background(WarmWindowBackground())
         .ignoresSafeArea()
     }
@@ -185,71 +176,65 @@ private struct SettingsRootView: View {
         case .recording: RecordingSettingsView()
         case .translate: TranslateSettingsView()
         case .hotkeys: HotkeySettingsView()
-        case .tips: TipsSettingsView()
         }
     }
 }
 
-/// 左侧栏目：图标小方块 + 名称；选中的是杏色圆角块，切换时弹性滑过去
+/// 左侧栏目：暖色图标小方块 + 名称；选中的是一块杏色的液态玻璃，换栏目时像液体一样流过去（和标注工具栏一样）
 private struct SettingsSidebar: View {
     @ObservedObject var selection: SettingsSelection
     let onSelect: (SettingsTab) -> Void
 
-    private let rowHeight: CGFloat = 38
-
+    private let rowHeight: CGFloat = 36
     private let tabs = SettingsTab.allCases
+    /// 侧栏左右留的空
+    private let inset: CGFloat = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 让出左上角的红绿灯
-            Spacer().frame(height: 52)
+            Spacer().frame(height: 46)
             // 字标：图标配色的渐变字 + 扫描线 + 光点
-            VelosWordmark(fontSize: 32)
-                .padding(.leading, 22)
+            VelosWordmark(fontSize: 28)
+                .padding(.leading, inset + 10)
                 .padding(.bottom, 12)
 
             let index = CGFloat(tabs.firstIndex(of: selection.tab) ?? 0)
-            ZStack(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(LinearGradient(colors: [Color.apricot.opacity(0.88), .apricot], startPoint: .top, endPoint: .bottom))
-                    .shadow(color: Color.apricot.opacity(0.4), radius: 5, y: 2)
-                    .frame(height: rowHeight - 4)
-                    .offset(y: index * rowHeight + 2)
-                VStack(spacing: 0) {
-                    ForEach(tabs, id: \.self) { tab in
-                        row(tab)
+            GeometryReader { proxy in
+                ZStack(alignment: .topLeading) {
+                    LiquidSelection(rect: CGRect(x: 0, y: index * rowHeight + 2, width: proxy.size.width, height: rowHeight - 4),
+                                    cornerRadius: 10)
+                    VStack(spacing: 0) {
+                        ForEach(tabs, id: \.self) { tab in
+                            row(tab)
+                        }
                     }
                 }
             }
-            .padding(.horizontal, 10)
+            .frame(height: rowHeight * CGFloat(tabs.count))
+            .padding(.horizontal, inset)
 
             Spacer()
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.warmCard.opacity(0.45))
+        .background(Color.settingsCard.opacity(0.45))
     }
 
     private func row(_ tab: SettingsTab) -> some View {
         let selected = tab == selection.tab
         return HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(selected ? AnyShapeStyle(Color.white.opacity(0.25)) : AnyShapeStyle(tab.tint))
-                .overlay(
-                    Glyph(tab.symbol, size: 11.5)
-                        .foregroundStyle(.white)
-                        .symbolEffect(.bounce, value: selected)
-                )
-                .frame(width: 24, height: 24)
+            IconChip(symbol: tab.symbol, tint: selected ? Color.white.opacity(0.25) : tab.tint, side: 24)
             Text(tab.title)
                 .font(.system(size: 13, weight: selected ? .semibold : .medium, design: .rounded))
-                .foregroundStyle(selected ? Color.white : Color.warmInk)
+                .foregroundStyle(selected ? Color.white : Color.ink)
+                .animation(.easeOut(duration: 0.15), value: selected)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 8)
         .frame(height: rowHeight)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.warmTrack)
+                .fill(Color.glassTrack)
                 .padding(.vertical, 2)
                 .opacity(!selected && selection.hovered == tab ? 1 : 0)
         )

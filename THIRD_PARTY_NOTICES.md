@@ -32,7 +32,7 @@ SF Symbols 按 Apple 的许可只在 Apple 平台的 App 界面里使用。
 ### Tendedero
 
 - 项目：https://github.com/alejandrobujan/tendedero
-- 用到的地方：晾衣绳（`Sources/Velos/Clothesline/`）的界面、卡片上的鼠标操作、面板和放下 / 收起的规则、截图飞到绳上的动画、晾衣绳的声音（什么时候响、响哪一声），改写成以 Velos 的「最近截图」为数据，并把鼠标检测从定时查询改成系统通知
+- 用到的地方：晾衣绳（`Sources/Velos/Clothesline/`）的界面、卡片上的鼠标操作、面板和放下 / 收起的规则、截图飞到绳上的动画、截图和晾衣绳的声音（照 tendedero.app 网站上的合成方法：频率、长短、音量、滤波和什么时候响），改写成以 Velos 的「最近截图」为数据，并把鼠标检测从定时查询改成系统通知
 - 许可证：MIT（只适用于代码；Tendedero 的名字和图标不在授权范围内，Velos 没有使用）
 
 ```

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// 自己画的图标（系统图标里没有合适的）。都是模板图：颜色由按钮决定（平时暖棕色，选中时白色），和系统图标一致
+/// 自己画的图标（系统图标里没有合适的）。都是模板图：颜色由按钮决定（平时墨色，选中时白色），和系统图标一致
 enum VelosIcons {
     /// 长截图：上面一个开口的框（一整页），下面一把剪刀（剪下来）
     static let longCapture: NSImage = {
@@ -14,7 +14,7 @@ enum VelosIcons {
         return image
     }()
 
-    /// 晾衣绳：一根微微下垂的绳子，上面用夹子夹着两张歪歪的照片
+    /// 晾衣绳：一根微微下垂的绳子，上面用两个夹子夹着一件 T 恤
     static let clothesline: NSImage = {
         let image = NSImage(size: CGSize(width: 18, height: 18), flipped: true) { _ in
             drawClothesline()
@@ -25,30 +25,40 @@ enum VelosIcons {
         return image
     }()
 
-    /// 在 18 × 18 的坐标里画（y 轴向下）。小到 15 点也要认得出来：绳子细、照片是实心的、彼此留出空隙
+    /// 在 18 × 18 的坐标里画（y 轴向下）。线条图，和系统的线条图标一样轻：
+    /// 一根往下垂的绳子，中间挂一件 T 恤（只画轮廓），两个肩膀各一个实心的小夹子
     static func drawClothesline(color: NSColor = .black) {
         color.set()
-        // 绳子：从左到右微微下垂
         let rope = NSBezierPath()
-        rope.lineWidth = 1.2
+        rope.lineWidth = 1.1
         rope.lineCapStyle = .round
-        rope.move(to: CGPoint(x: 1, y: 3.4))
-        rope.curve(to: CGPoint(x: 17, y: 3.4), controlPoint1: CGPoint(x: 6, y: 5.6), controlPoint2: CGPoint(x: 12, y: 5.6))
+        rope.move(to: CGPoint(x: 1, y: 3))
+        rope.curve(to: CGPoint(x: 17, y: 3), controlPoint1: CGPoint(x: 6, y: 4.8), controlPoint2: CGPoint(x: 12, y: 4.8))
         rope.stroke()
-        // 两张照片：顶边挂在绳子上，各歪一点；上面一个小夹子
-        func photo(center: CGPoint, size: CGSize, degrees: CGFloat) {
-            let transform = NSAffineTransform()
-            transform.translateX(by: center.x, yBy: center.y)
-            transform.rotate(byDegrees: degrees)
-            let card = NSBezierPath(roundedRect: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height),
-                                    xRadius: 1.1, yRadius: 1.1)
-            card.append(NSBezierPath(roundedRect: CGRect(x: -0.75, y: -size.height / 2 - 2.2, width: 1.5, height: 2.6),
-                                     xRadius: 0.5, yRadius: 0.5))
-            card.transform(using: transform as AffineTransform)
-            card.fill()
+
+        // T 恤：领口一道弧，两只短袖，方方的身子
+        let shirt = NSBezierPath()
+        shirt.lineWidth = 1.1
+        shirt.lineJoinStyle = .round
+        shirt.move(to: CGPoint(x: 7.3, y: 6.0))
+        shirt.curve(to: CGPoint(x: 10.7, y: 6.0), controlPoint1: CGPoint(x: 7.8, y: 7.6), controlPoint2: CGPoint(x: 10.2, y: 7.6))
+        shirt.line(to: CGPoint(x: 12.7, y: 6.3))
+        shirt.line(to: CGPoint(x: 15.6, y: 9.0))
+        shirt.line(to: CGPoint(x: 14.0, y: 10.6))
+        shirt.line(to: CGPoint(x: 12.7, y: 9.6))
+        shirt.line(to: CGPoint(x: 12.7, y: 15.8))
+        shirt.line(to: CGPoint(x: 5.3, y: 15.8))
+        shirt.line(to: CGPoint(x: 5.3, y: 9.6))
+        shirt.line(to: CGPoint(x: 4.0, y: 10.6))
+        shirt.line(to: CGPoint(x: 2.4, y: 9.0))
+        shirt.line(to: CGPoint(x: 5.3, y: 6.3))
+        shirt.close()
+        shirt.stroke()
+
+        // 夹子：跨在绳子和肩膀上
+        for x in [6.2, 11.8] {
+            NSBezierPath(roundedRect: CGRect(x: x - 0.7, y: 3.2, width: 1.4, height: 3.4), xRadius: 0.6, yRadius: 0.6).fill()
         }
-        photo(center: CGPoint(x: 5.1, y: 9.9), size: CGSize(width: 5.6, height: 7), degrees: -7)
-        photo(center: CGPoint(x: 12.9, y: 10.1), size: CGSize(width: 5.6, height: 7), degrees: 7)
     }
 
     /// 自己画的图标的名字：设置里图标和系统图标用同一个字符串表示，见 Glyph
@@ -59,6 +69,29 @@ enum VelosIcons {
         default: nil
         }
     }
+
+    /// 按要显示的大小（点）现画一张：直接画在那么大的格子里，不是把 18 点的图拉伸过去，所以边缘始终清楚
+    static func named(_ name: String, side: CGFloat) -> NSImage? {
+        let draw: (() -> Void)? = switch name {
+        case Glyph.clothesline: { drawClothesline() }
+        case Glyph.longCapture: { drawLongCapture() }
+        default: nil
+        }
+        guard let draw else { return nil }
+        let key = "\(name)@\(side)"
+        if let cached = sized[key] { return cached }
+        let image = NSImage(size: CGSize(width: side, height: side), flipped: true) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            context.scaleBy(x: side / 18, y: side / 18)   // 图形按 18 × 18 的坐标写，放大到要的大小再画
+            draw()
+            return true
+        }
+        image.isTemplate = true
+        sized[key] = image
+        return image
+    }
+
+    private static var sized: [String: NSImage] = [:]
 
     /// 在 18 × 18 的坐标里画（y 轴向下）
     static func drawLongCapture(color: NSColor = .black) {
@@ -101,21 +134,34 @@ struct Glyph: View {
     let name: String
     /// 和系统图标的字号一样大
     var size: CGFloat = 13
+    var weight: Font.Weight = .medium
+    /// 用线条版（gearshape.fill → gearshape）；彩色小方块上的白图标用实心版
+    var outline = true
 
-    init(_ name: String, size: CGFloat = 13) {
+    init(_ name: String, size: CGFloat = 13, weight: Font.Weight = .medium, outline: Bool = true) {
         self.name = name
         self.size = size
+        self.weight = weight
+        self.outline = outline
     }
 
     var body: some View {
-        if let image = VelosIcons.named(name) {
+        // 自己画的图标按显示的大小现画（取整到整点，边缘对齐像素），不拉伸
+        let side = (size * 1.35).rounded()
+        if let image = VelosIcons.named(name, side: side) {
             Image(nsImage: image)
                 .renderingMode(.template)
-                .resizable()
-                .frame(width: size * 1.35, height: size * 1.35)
+                .frame(width: side, height: side)
         } else {
-            Image(systemName: name).font(.system(size: size, weight: .semibold))
+            Image(systemName: outline ? Self.outline(name) : name).font(.system(size: size, weight: weight))
         }
+    }
+
+    /// 轻一点：有线条版的系统图标就用线条版（gearshape.fill → gearshape）
+    static func outline(_ name: String) -> String {
+        guard name.hasSuffix(".fill") else { return name }
+        let base = String(name.dropLast(5))
+        return NSImage(systemSymbolName: base, accessibilityDescription: nil) != nil ? base : name
     }
 }
 
@@ -151,7 +197,6 @@ enum VelosMark {
         return image
     }()
 }
-
 
 /// 设置窗口左上角的字标：「Velos」用 App 图标里 V 的配色（浅杏 → 珊瑚 → 绯红的渐变），
 /// 一道带辉光的扫描线横穿字的中部，周围散着白色和珊瑚色的光点（和 App 图标的光点同一种画法）

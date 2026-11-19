@@ -31,9 +31,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .utility).async { CapturedImage.removeStaleSharingFiles() }
         Log.capture.notice("Velos 已启动，屏幕录制权限：\(PermissionManager.shared.screenRecordingGranted ? "已授权" : "未授权", privacy: .public)")
 
-        // 只有第一次运行才弹出权限引导；之后的每次启动（包括开机自启）都不弹出任何窗口
+        // 只有第一次运行、还没有屏幕录制权限时打开设置 › 通用（授权按钮在那里）；之后的每次启动（包括开机自启）都不弹出任何窗口
         if !Preferences.shared.hasCompletedOnboarding {
-            SettingsLauncher.openOnboarding()
+            Preferences.shared.hasCompletedOnboarding = true
+            if !PermissionManager.shared.screenRecordingGranted { SettingsLauncher.openPermissions() }
         }
 
         #if DEBUG
@@ -72,7 +73,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard ClotheslineController.shared.isEnabled else {
             let alert = NSAlert()
             alert.messageText = "晾衣绳没有打开"
-            alert.informativeText = "在 设置 › 晾衣绳 里打开「使用晾衣绳」后，就能从访达把图片、录屏挂上去。"
             alert.addButton(withTitle: "打开设置")
             alert.addButton(withTitle: "好")
             NSApp.activate()

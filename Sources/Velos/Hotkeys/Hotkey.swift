@@ -13,6 +13,10 @@ struct Hotkey: Hashable, Codable {
     static let defaultTranslate = Hotkey(keyCode: UInt32(kVK_ANSI_D), carbonModifiers: UInt32(optionKey))
     /// 放下 / 收起晾衣绳：⌥F（挨着 ⌥A / ⌥S / ⌥D）
     static let defaultClothesline = Hotkey(keyCode: UInt32(kVK_ANSI_F), carbonModifiers: UInt32(optionKey))
+    /// 直接全屏：同一个键再加 ⇧（⌥⇧A 全屏截图、⌥⇧S 全屏录屏、⌥⇧D 全屏翻译）
+    static let defaultScreenshotFull = Hotkey(keyCode: UInt32(kVK_ANSI_A), carbonModifiers: UInt32(optionKey | shiftKey))
+    static let defaultRecordingFull = Hotkey(keyCode: UInt32(kVK_ANSI_S), carbonModifiers: UInt32(optionKey | shiftKey))
+    static let defaultTranslateFull = Hotkey(keyCode: UInt32(kVK_ANSI_D), carbonModifiers: UInt32(optionKey | shiftKey))
     /// 1.0 版的默认快捷键 ⌥1 / ⌥2 / ⌥3（升级时还在用旧默认值的，改成新默认值）
     static let legacyDefaults: [Hotkey] = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3].map {
         Hotkey(keyCode: UInt32($0), carbonModifiers: UInt32(optionKey))

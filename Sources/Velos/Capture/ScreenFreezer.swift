@@ -61,7 +61,7 @@ enum ScreenFreezer {
         try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
     }
 
-    /// 标记「普通窗口」的 identifier：设置、权限设置、标注编辑、视频预览。
+    /// 标记「普通窗口」的 identifier：设置、标注编辑、视频预览。
     /// 它们和其他 App 的窗口一样，可以被截图、录屏、截屏翻译截到（也能悬停识别、单击选中）。
 
     /// 可以被截到的 Velos 窗口：上面那些普通窗口 + 钉图（用户钉在屏幕上的内容，与 Snipaste 一致）

@@ -309,10 +309,11 @@ final class ClotheslineModel: ObservableObject {
     }
 
     /// 取下（点 ✕、拖到废纸篓、右键「取下」）：原图移到废纸篓
-    func remove(_ id: URL) {
+    /// - Parameter sound: 取下、拖到程序坞的废纸篓上（现在是同一声，分开写是因为意思不同）
+    func remove(_ id: URL, sound: SoundEffects.Effect = .takeDown) {
         let photos = targets(id)
         guard !photos.isEmpty else { return }
-        SoundEffects.play(.takeDown)
+        SoundEffects.play(sound)
         take(photos)
         // 先暂存（⌘Z 能放回来），过一阵再进废纸篓
         ClotheslineUndo.shared.takeDown(photos.map(\.entry), disposal: .trash)
@@ -320,9 +321,11 @@ final class ClotheslineModel: ObservableObject {
 
     /// 拖到别处放下了（聊天窗口、访达、桌面……）：它从绳上走了，挂在那边。
     /// 拖出去的是副本，「最近截图」里这张直接删掉（不进废纸篓）
-    func movedAway(_ ids: [URL]) {
+    /// - Parameter intoFinder: 放进了访达（文件夹、桌面）：不响；放进别的 App 是「发过去」的一声（和 Tendedero 的网站一样）
+    func movedAway(_ ids: [URL], intoFinder: Bool = false) {
         let photos = items.filter { ids.contains($0.id) }
         guard !photos.isEmpty else { return }
+        if !intoFinder { SoundEffects.play(.send) }
         take(photos)
         ClotheslineUndo.shared.takeDown(photos.map(\.entry), disposal: .delete)
         Log.capture.notice("晾衣绳：拖走了 \(photos.count) 张")

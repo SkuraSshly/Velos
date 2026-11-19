@@ -1,7 +1,7 @@
 import AppKit
 
-/// 数值拉条（温暖风格）：[名称] ——●—— 数值。拖动、点按或在上面滚动都能改；按 step 取整
-class ValueSlider: WarmControl {
+/// 数值拉条（温暖磨砂风格）：[名称] ——●—— 数值。拖动、点按或在上面滚动都能改；按 step 取整
+class ValueSlider: GlassControl {
     var onChange: ((CGFloat) -> Void)?
     var value: CGFloat = 1 { didSet { needsDisplay = true } }
     var minimum: CGFloat = 0 { didSet { needsDisplay = true } }
@@ -74,14 +74,14 @@ class ValueSlider: WarmControl {
         NSBezierPath(roundedRect: track, xRadius: 2, yRadius: 2).fill()
         let fraction = maximum > minimum ? (min(max(value, minimum), maximum) - minimum) / (maximum - minimum) : 0
         let knobX = track.minX + fraction * track.width
-        WarmPalette.apricot.setFill()
+        GlassPalette.accent.setFill()
         NSBezierPath(roundedRect: CGRect(x: track.minX, y: track.minY, width: knobX - track.minX, height: track.height),
                      xRadius: 2, yRadius: 2).fill()
         // 白点不做动效：鼠标放上去只换指针（左右小三角）
         let knob = CGRect(x: knobX - 7, y: bounds.midY - 7, width: 14, height: 14)
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
-        shadow.shadowColor = NSColor(srgbRed: 0.3, green: 0.18, blue: 0.1, alpha: 0.3)
+        shadow.shadowColor = GlassPalette.shadow.withAlphaComponent(0.3)
         shadow.shadowBlurRadius = 2
         shadow.shadowOffset = CGSize(width: 0, height: -1)
         shadow.set()

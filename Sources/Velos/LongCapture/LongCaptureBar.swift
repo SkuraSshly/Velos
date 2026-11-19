@@ -13,14 +13,14 @@ final class LongCaptureBar: NSPanel {
     var onPin: (() -> Void)?
 
     private let bar = FrostedPanel(blending: .behindWindow)
-    private let autoButton = PillButton(title: "自动滚动", symbol: "play.fill", color: WarmPalette.coral,
+    private let autoButton = PillButton(title: "自动滚动", symbol: "play.fill", color: GlassPalette.hot,
                                         help: "自动滚动：匀速、慢慢往下滚（鼠标放在选区里），再点一次停止")
     private let lengthLabel = NSTextField(labelWithString: "")
     private let cancelButton = ToolbarButton(symbol: "xmark", help: "取消长截图（Esc）")
     private let editButton = ToolbarButton(symbol: "square.and.pencil", help: "编辑：结束长截图，打开编辑窗口继续标注")
     private let pinButton = ToolbarButton(symbol: "pin", help: "钉在屏幕上：结束长截图，把整张长图钉在屏幕上")
     private let saveButton = ToolbarButton(symbol: "square.and.arrow.down", help: "完成并保存到文件")
-    private let doneButton = PillButton(title: "完成", symbol: "checkmark", color: WarmPalette.apricot,
+    private let doneButton = PillButton(title: "完成", symbol: "checkmark", color: GlassPalette.accent,
                                         help: "完成：复制到剪贴板、显示缩略图")
     private static let height: CGFloat = 42
     private static let inset: CGFloat = 40   // 给投影留出空间
@@ -40,7 +40,7 @@ final class LongCaptureBar: NSPanel {
         contentView = root
         root.addSubview(bar)
         lengthLabel.font = roundedFont(ofSize: 12, weight: .medium, monospacedDigits: true)
-        lengthLabel.textColor = WarmPalette(for: bar).ink
+        lengthLabel.textColor = GlassPalette(for: bar).ink
         autoButton.action = { [weak self] in self?.onAutoScroll?() }
         cancelButton.action = { [weak self] in self?.onCancel?() }
         editButton.action = { [weak self] in self?.onEdit?() }
@@ -64,14 +64,14 @@ final class LongCaptureBar: NSPanel {
     func setAutoScrolling(_ on: Bool) {
         autoButton.title = on ? "停止" : "自动滚动"
         autoButton.symbol = on ? "stop.fill" : "play.fill"
-        autoButton.color = on ? WarmPalette.coral.blended(withFraction: 0.25, of: .black) ?? WarmPalette.coral : WarmPalette.coral
+        autoButton.color = on ? GlassPalette.hot.blended(withFraction: 0.25, of: .black) ?? GlassPalette.hot : GlassPalette.hot
         autoButton.toolTip = on ? "停止自动滚动" : "自动滚动：匀速、慢慢往下滚（鼠标放在选区里），再点一次停止"
         relayout()
     }
 
     /// 正在生成结果：按钮不能再点
     func setBusy() {
-        for control in [autoButton, cancelButton, editButton, pinButton, saveButton, doneButton] as [WarmControl] { control.isEnabled = false }
+        for control in [autoButton, cancelButton, editButton, pinButton, saveButton, doneButton] as [GlassControl] { control.isEnabled = false }
         lengthLabel.stringValue = "正在生成…"
         relayout()
     }

@@ -34,7 +34,6 @@ struct ClotheslineGrabArea: NSViewRepresentable {
         let id = item.id
         let model = model
         view.dragImage = item.thumb
-        view.toolTip = "空格快速查看 · 拖进其他 App · ⌘ 单击多选"
         view.onSelect = { extending in model.select(id, extending: extending, toggling: !extending) }
         // 按在选中的照片上：保留选中，好一起拖走；单纯点一下松开时才清掉
         view.onPlainPress = { if !model.selectedIDs.contains(id) { model.clearSelection() } }
@@ -58,9 +57,9 @@ struct ClotheslineGrabArea: NSViewRepresentable {
             ClotheslineController.shared.holdUntilPointerReturnsToLine()
         }
         view.dragFiles = { model.dragFiles(id) }
-        view.onMovedAway = { ids in model.movedAway(ids) }
+        view.onMovedAway = { ids, intoFinder in model.movedAway(ids, intoFinder: intoFinder) }
         view.shareFiles = { model.shareFiles(id) }
-        view.onTrash = { model.remove(id) }
+        view.onTrash = { model.remove(id, sound: .trash) }
         view.onPressChange = { pressed in model.pressedID = pressed ? id : nil }
         // 弱引用自己：菜单的闭包挂在这个视图上，强引用会互相拉着，卡片取下后视图也释放不掉
         view.menuProvider = { [weak view] in
@@ -91,7 +90,7 @@ struct ClotheslineGrabArea: NSViewRepresentable {
                 menu.addItem(ClosureMenuItem("钉到屏幕") { model.pinToScreen(id) })
             }
             let allPinned = targets.allSatisfy(\.pinned)
-            menu.addItem(ClosureMenuItem(allPinned ? "取消钉在绳上" : "钉在绳上（不会被挤掉）") {
+            menu.addItem(ClosureMenuItem(allPinned ? "取消钉在绳上" : "钉在绳上") {
                 model.setPinnedOnLine(id, !allPinned)
             })
             // 只有真的存在电脑上的才能在访达里找到：截图要先「存文件」（或截图时就设置了存文件），录屏、GIF 本来就是文件
@@ -111,7 +110,7 @@ struct ClotheslineGrabArea: NSViewRepresentable {
             }
             menu.addItem(ClosureMenuItem("全部取下") { model.removeAll() })
             if ClotheslineUndo.shared.canUndo {
-                menu.addItem(ClosureMenuItem("撤销取下（⌘Z）") { ClotheslineUndo.shared.undo() })
+                menu.addItem(ClosureMenuItem("撤销取下") { ClotheslineUndo.shared.undo() })
             }
             return menu
         }
@@ -126,7 +125,8 @@ final class ClotheslineGrabView: NSView, NSDraggingSource, NSSharingServicePicke
     var dragImage: NSImage?
     var dragFiles: () -> [(id: URL, file: URL, thumb: NSImage)] = { [] }
     /// 拖到别处放下了：这几张从绳上拿走
-    var onMovedAway: ([URL]) -> Void = { _ in }
+    /// 拖走了：哪几张、是不是放进了访达（文件夹、桌面）
+    var onMovedAway: ([URL], Bool) -> Void = { _, _ in }
     var shareFiles: () -> [URL] = { [] }
     /// 参数：是不是 ⇧（连选）；否则是 ⌘（加选 / 取消一张）
     var onSelect: (Bool) -> Void = { _ in }
@@ -255,13 +255,32 @@ final class ClotheslineGrabView: NSView, NSDraggingSource, NSSharingServicePicke
             onTrash()
         } else if !operation.isEmpty {
             // 放下了（聊天窗口、访达、桌面……）：从绳上走了，挂在那边（缩小淡出的动画由绳子播放）
-            onMovedAway(ids)
+            onMovedAway(ids, Self.isFinder(at: screenPoint))
         }
         // operation 为空：没地方接收，系统已经让它飞回绳上
     }
 
     /// 这次拖的是哪几张
     private var draggedIDs: [URL] = []
+
+    /// 松手的地方是访达（访达窗口或桌面）吗：只看窗口的归属，不读窗口内容，不需要任何权限
+    private static func isFinder(at point: NSPoint) -> Bool {
+        guard let primary = NSScreen.screens.first,
+              let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        let flipped = CGPoint(x: point.x, y: primary.frame.maxY - point.y)   // 窗口列表的坐标原点在左上角
+        let own = ProcessInfo.processInfo.processIdentifier
+        // 从前往后找第一个盖住这一点的普通窗口；都没有就是桌面（属于访达）
+        for info in list {
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != own,
+                  (info[kCGWindowLayer as String] as? Int) == 0,
+                  let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+                  CGRect(x: bounds["X"] ?? 0, y: bounds["Y"] ?? 0, width: bounds["Width"] ?? 0, height: bounds["Height"] ?? 0)
+                    .contains(flipped) else { continue }
+            return NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == "com.apple.finder"
+        }
+        return true
+    }
 
     // MARK: 共享
 
@@ -352,12 +371,12 @@ enum CardButton: CaseIterable {
     @MainActor var help: String {
         switch self {
         case .remove: "取下"
-        case .pinOnLine: "钉在绳上（不会被挤掉）"
+        case .pinOnLine: "钉在绳上"
         case .copy: "复制"
-        case .saveFile: "存文件（存到截图文件夹）"
-        case .openFile: "打开文件位置（在访达中显示）"
-        case .exportGIF: "导出为 GIF（存在录屏旁边，也挂到绳上）"
-        case .trash: RecordingFiles.deletesForever ? "永久删除（不进废纸篓，没法找回）" : "删除（文件本身移到废纸篓，能放回来）"
+        case .saveFile: "存文件"
+        case .openFile: "在访达中显示"
+        case .exportGIF: "导出为 GIF"
+        case .trash: RecordingFiles.deletesForever ? "永久删除" : "移到废纸篓"
         }
     }
 

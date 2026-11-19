@@ -299,12 +299,10 @@ enum DebugShowcase {
 
     /// 只拍设置窗口（用 ScreenCaptureKit 拍 Velos 自己的窗口，能看到真实的毛玻璃和模糊效果）。
     /// 窗口后面垫一张合成的演示桌面，毛玻璃透出来的只有它，不会拍到真实屏幕内容。
-    /// 用法：open --env VELOS_SETTINGS_SHOTS=/输出目录 [--env VELOS_SETTINGS_DARK=1] build/Velos.app
+    /// 用法：open --env VELOS_SETTINGS_SHOTS=/输出目录 build/Velos.app（设置窗口固定是深色）
     static func runSettingsShotsIfRequested() {
         guard let path = ProcessInfo.processInfo.environment["VELOS_SETTINGS_SHOTS"] else { return }
         let dir = URL(fileURLWithPath: path, isDirectory: true)
-        let dark = ProcessInfo.processInfo.environment["VELOS_SETTINGS_DARK"] != nil
-        NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(500))
             guard let screen = NSScreen.main, let (image, _) = desktop(for: screen) else { return }
@@ -313,7 +311,12 @@ enum DebugShowcase {
                 SettingsWindowController.show(tab)
                 try? await Task.sleep(for: .milliseconds(800))
                 if let window = NSApp.windows.first(where: { $0.title == tab.title && $0.isVisible }) {
-                    await captureWindow(window, name: "settings-\(tab.rawValue)\(dark ? "-dark" : "").png", dir: dir)
+                    await captureWindow(window, name: "settings-\(tab.rawValue).png", dir: dir)
+                    // 连同后面的演示桌面一起拍：看得出背景的玻璃是不是真的透光（只拍窗口时后面是空的，玻璃只会是一块灰）
+                    if tab == .general {
+                        await capture(window.frame.insetBy(dx: -40, dy: -40), on: screen,
+                                      name: "settings-general-desktop.png", dir: dir)
+                    }
                     // 内容超过一屏的页面：再拍一张滚到底的
                     if let scroll = Self.firstScrollView(in: window.contentView),
                        let document = scroll.documentView, document.frame.height > scroll.contentView.bounds.height + 1 {
@@ -321,15 +324,59 @@ enum DebugShowcase {
                         scroll.contentView.scroll(to: CGPoint(x: 0, y: bottom))
                         scroll.reflectScrolledClipView(scroll.contentView)
                         try? await Task.sleep(for: .milliseconds(400))
-                        await captureWindow(window, name: "settings-\(tab.rawValue)-bottom\(dark ? "-dark" : "").png", dir: dir)
+                        await captureWindow(window, name: "settings-\(tab.rawValue)-bottom.png", dir: dir)
                     }
                 }
             }
-            // 权限设置（独立窗口时）
-            OnboardingWindowController.show()
-            try? await Task.sleep(for: .milliseconds(800))
-            if let window = OnboardingWindowController.debugWindow {
-                await captureWindow(window, name: "onboarding\(dark ? "-dark" : "").png", dir: dir)
+            // 侧栏的液态玻璃：从「通用」切到「快捷键」，逐帧拍下来（VELOS_LENS_FRAMES=1 时）
+            if ProcessInfo.processInfo.environment["VELOS_LENS_FRAMES"] != nil {
+                SettingsWindowController.show(.general)
+                try? await Task.sleep(for: .milliseconds(800))
+                if let window = SettingsWindowController.currentWindow {
+                    // 右边的分段选择：截图格式 PNG → JPEG，逐帧拍下来，拍完改回去
+                    SettingsWindowController.show(.screenshot)
+                    try? await Task.sleep(for: .milliseconds(600))
+                    let format = Preferences.shared.imageFormat
+                    Preferences.shared.imageFormat = .png
+                    try? await Task.sleep(for: .milliseconds(600))
+                    let segStart = Date()
+                    Preferences.shared.imageFormat = .jpeg
+                    var j = 0
+                    while Date().timeIntervalSince(segStart) < 0.8 {
+                        let ms = Int(Date().timeIntervalSince(segStart) * 1000)
+                        await captureWindow(window, name: String(format: "seg-%02d-%04dms.png", j, ms), dir: dir)
+                        j += 1
+                    }
+                    Preferences.shared.imageFormat = format
+                    // 开关：「包含鼠标指针」拨一下，逐帧拍下来，拍完改回去
+                    let cursor = Preferences.shared.screenshotIncludesCursor
+                    Preferences.shared.screenshotIncludesCursor = false
+                    try? await Task.sleep(for: .milliseconds(600))
+                    let swStart = Date()
+                    Preferences.shared.screenshotIncludesCursor = true
+                    var k = 0
+                    while Date().timeIntervalSince(swStart) < 0.8 {
+                        let ms = Int(Date().timeIntervalSince(swStart) * 1000)
+                        await captureWindow(window, name: String(format: "sw-%02d-%04dms.png", k, ms), dir: dir)
+                        k += 1
+                    }
+                    Preferences.shared.screenshotIncludesCursor = cursor
+                    SettingsWindowController.show(.general)
+                    try? await Task.sleep(for: .milliseconds(600))
+
+                    // 远的一跳（通用 → 快捷键）和近的一跳（快捷键 → 晾衣绳）
+                    for (tab, prefix) in [(SettingsTab.hotkeys, "side"), (.clothesline, "near")] {
+                        let start = Date()
+                        SettingsWindowController.show(tab)
+                        var i = 0
+                        while Date().timeIntervalSince(start) < 0.9 {
+                            let ms = Int(Date().timeIntervalSince(start) * 1000)
+                            await captureWindow(window, name: String(format: "%@-%02d-%04dms.png", prefix, i, ms), dir: dir)
+                            i += 1
+                        }
+                        try? await Task.sleep(for: .milliseconds(400))
+                    }
+                }
             }
             backdrop.close()
             NSApp.terminate(nil)
@@ -380,8 +427,7 @@ enum DebugShowcase {
         let hover = gp(chart, chartBarX(3) + 60, 200)   // 第 4 根柱子的右边缘：放大镜里能看到像素级的边界
         session.overlayMouseMoved(to: hover)
         try? await Task.sleep(for: .milliseconds(400))
-        var area = g(layout.stage)
-        if let hint = session.debugHintFrame { area = area.union(hint) }
+        let area = g(layout.stage)
         await capture(area.insetBy(dx: -20, dy: -20), on: screen, name: "1-screenshot-select.png", dir: dir)
 
         // 2. 截图：单击选中图表窗口，画上标注
@@ -419,6 +465,20 @@ enum DebugShowcase {
             annotated = annotated.union(window.convertToScreen(host.convert(bar.frame, to: nil)))
         }
         await capture(annotated.insetBy(dx: -40, dy: -40), on: screen, name: "2-screenshot-annotate.png", dir: dir)
+
+        // 工具切换的玻璃变形：逐帧拍下来（VELOS_LENS_FRAMES=1 时），检查它真的在「流」
+        if ProcessInfo.processInfo.environment["VELOS_LENS_FRAMES"] != nil,
+           let host = bar.superview, let window = host.window {
+            let barRect = window.convertToScreen(host.convert(bar.frame, to: nil)).insetBy(dx: -12, dy: -12)
+            let start = Date()
+            session.debugSelectTool(.highlighter)
+            var i = 0
+            while Date().timeIntervalSince(start) < 0.9 {
+                let ms = Int(Date().timeIntervalSince(start) * 1000)
+                await capture(barRect, on: screen, name: String(format: "lens-%02d-%04dms.png", i, ms), dir: dir)
+                i += 1
+            }
+        }
 
         // 3. 晾衣绳：先挂上几张演示截图（演示桌面上几个窗口的样子），再完成刚才标注的截图：它原位「咔嚓」后飞到绳上
         let backdrop = makeBackdrop(for: screen, image: image, level: NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1))
@@ -474,6 +534,23 @@ enum DebugShowcase {
                 area = area.union(window.convertToScreen(options.convert(options.bounds, to: nil)))
             }
             await capture(area.insetBy(dx: -20, dy: -20), on: screen, name: "4-recording-select.png", dir: dir)
+            // 录屏选项条的液态玻璃：关掉指针再打开、帧率换一档，逐帧拍下来（VELOS_LENS_FRAMES=1 时）
+            if ProcessInfo.processInfo.environment["VELOS_LENS_FRAMES"] != nil, let window = options.window {
+                let barRect = window.convertToScreen(options.convert(options.bounds, to: nil)).insetBy(dx: -12, dy: -12)
+                let rate = Preferences.shared.recordingFrameRate
+                options.debugToggleCursor()
+                try? await Task.sleep(for: .milliseconds(700))
+                let start = Date()
+                options.debugToggleCursor()
+                options.debugSetFrameRate(rate == .fps30 ? .fps60 : .fps30)
+                var i = 0
+                while Date().timeIntervalSince(start) < 0.9 {
+                    let ms = Int(Date().timeIntervalSince(start) * 1000)
+                    await capture(barRect, on: screen, name: String(format: "rec-%02d-%04dms.png", i, ms), dir: dir)
+                    i += 1
+                }
+                options.debugSetFrameRate(rate)
+            }
             recording.cancel()
         }
         try? await Task.sleep(for: .milliseconds(400))
@@ -548,7 +625,7 @@ enum DebugShowcase {
         // 7. 设置窗口
         for (tab, name) in [(SettingsTab.recording, "7-settings-recording.png"), (.hotkeys, "8-settings-hotkeys.png"),
                             (.general, "9-settings-general.png"), (.translate, "12-settings-translate.png"),
-                            (.clothesline, "13-settings-clothesline.png"), (.tips, "14-settings-tips.png")] {
+                            (.clothesline, "13-settings-clothesline.png")] {
             SettingsWindowController.show(tab)
             try? await Task.sleep(for: .milliseconds(700))
             if let window = NSApp.windows.first(where: { $0.title == tab.title && $0.isVisible }) {
