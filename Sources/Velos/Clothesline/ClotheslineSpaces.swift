@@ -11,6 +11,9 @@ import AppKit
 /// 开着时出现了也立刻收起，免得接走本来要放到另一个桌面的东西。
 /// 读的是窗口列表（谁在前台、菜单栏归谁在调度中心里都不变）；读一次比较费，最多 0.2 秒读一次，
 /// 而且只在鼠标到了屏幕顶上、或绳子放下来时才读。
+///
+/// 程序坞不自动隐藏时，程序坞自己就一直有一个和屏幕一样大的窗口（层级、大小和调度中心的完全一样，分不出来），
+/// 这时不判断调度中心（当作没开）：不然绳子永远放不下来、放下来一动鼠标又收回去。
 @MainActor
 enum ClotheslineOverview {
     private static let probeInterval: TimeInterval = 0.2
@@ -18,12 +21,17 @@ enum ClotheslineOverview {
 
     static func isUp(now: Date = Date()) -> Bool {
         if let lastProbe, now.timeIntervalSince(lastProbe.at) < probeInterval { return lastProbe.up }
-        let up = coversAScreen(owner: NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first?.processIdentifier)
+        let up = dockAutohides && coversAScreen(owner: NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first?.processIdentifier)
         lastProbe = (now, up)
         return up
     }
 
-    /// 程序坞有一个（几乎）和屏幕一样大的窗口：调度中心开着。程序坞平时只有底下那一条，不会算进来
+    /// 程序坞设成了自动隐藏（系统设置 › 桌面与程序坞）。只有这时，程序坞的全屏窗口才说明调度中心开着
+    private static var dockAutohides: Bool {
+        UserDefaults(suiteName: "com.apple.dock")?.bool(forKey: "autohide") ?? true
+    }
+
+    /// 程序坞有一个（几乎）和屏幕一样大的窗口：调度中心开着（程序坞自动隐藏时，它平时没有这样的窗口）
     private static func coversAScreen(owner pid: pid_t?) -> Bool {
         guard let pid,
               let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
