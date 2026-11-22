@@ -105,13 +105,15 @@ final class RecordingManager: ObservableObject {
 
     private func beginCapture(_ target: RecordingTarget, from session: RecordingSelectionSession) {
         state = .starting
-        // 点击高亮的透明层要在创建录制范围之前出现，才能把它列为「要录进去的例外窗口」
+        // 点击高亮的透明层要在开始录制之前出现，录制范围才包含它
         if Preferences.shared.highlightClicks {
             highlighter = ClickHighlighter(screen: target.screen)
         }
+        // 控制条也在开始录制之前出现（这时计时是 0）：创建录制范围时就能把它和红框排除掉
+        showControlBar(for: target)
         Task {
             do {
-                let filter = try await Self.makeFilter(for: target, including: highlighter.map { [$0.windowID] } ?? [])
+                let filter = try await makeFilter(for: target)
                 session.finish()
                 let recorder = try ScreenRecorder(settings: try makeSettings(for: target, filter: filter))
                 // 录制意外中断（权限被收回、显示器被拔掉等）：把已经录到的部分保存下来
@@ -126,12 +128,10 @@ final class RecordingManager: ObservableObject {
                 isMicrophoneMuted = false
                 state = .recording
                 SoundEffects.play(.recordStart)
+                // 录制中 Velos 自己的提示音直接混进音轨（「开始录制」这一声是系统的声音，不在其中）
+                SoundEffects.onSynthesizedSound = { self.ownSoundPlayed($0) }   // 录完在 hideChrome 里摘掉
                 highlighter?.start()
-                showControlBar(for: target)
                 watchSystemEvents()
-                // 控制条、红框出来后换成「只排除它们」：录制中用 Velos 截图、截屏翻译时，截图界面、标注、
-                // 翻译结果、缩略图、钉图都会录进视频（录的就是屏幕上看到的）；只有录屏自己的控制条和红框不录
-                await includeVelosWindows(target)
                 let s = recorder.settings
                 Log.capture.notice("开始录制：\(s.pixelWidth)×\(s.pixelHeight) 像素，\(s.fps) fps，\(s.codec == .hevc ? "HEVC" : "H.264", privacy: .public)，码率 \(ScreenRecorder.bitRate(for: s) / 1_000_000) Mbps，系统声音 \(s.capturesSystemAudio)，麦克风 \(s.capturesMicrophone)，点击高亮 \(self.highlighter != nil)")
             } catch {
@@ -145,41 +145,21 @@ final class RecordingManager: ObservableObject {
     }
 
     /// 录制中：只排除录屏自己的控制条和红框，Velos 的其他窗口（截图界面、翻译结果、缩略图、钉图……）照常录进去
-    private func includeVelosWindows(_ target: RecordingTarget) async {
-        guard let recorder else { return }
-        do {
-            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
-            guard let display = content.displays.first(where: { $0.displayID == target.displayID }) else { return }
-            let chrome = Set([controlBar?.windowNumber, frameWindow?.windowNumber].compactMap { $0 }.map { CGWindowID($0) })
-            let excluded = content.windows.filter { chrome.contains($0.windowID) }
-            guard excluded.count == chrome.count else {
-                Log.capture.error("录屏：找不到控制条或红框的窗口，保持排除 Velos 的所有窗口")
-                return
-            }
-            try await recorder.updateFilter(SCContentFilter(display: display, excludingWindows: excluded))
-            Log.capture.notice("录屏：录制中使用截图、截屏翻译会录进视频（控制条、红框除外）")
-        } catch {
-            Log.capture.error("录屏：更新录制范围失败 \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// 录制范围：整块显示器，排除 Velos 自己的所有窗口（包括之后才出现的控制条、红框、缩略图），
-    /// 钉图（属于屏幕内容）和 including 里的窗口（点击高亮层）除外
-    private static func makeFilter(for target: RecordingTarget, including: [CGWindowID]) async throws -> SCContentFilter {
+    /// 录制范围：整块显示器，只排除录屏自己的控制条和红框。
+    /// 录制中用 Velos 截图、截屏翻译时，截图界面、标注、翻译结果、缩略图、钉图、设置窗口都录进视频（录的就是屏幕上看到的）。
+    /// 注意：只要排除了 Velos 的任何一个窗口，系统就不再给 Velos 自己的声音（实测）；
+    /// 录制中 Velos 的提示音由录制引擎直接混进音轨，见 ownSoundPlayed
+    private func makeFilter(for target: RecordingTarget) async throws -> SCContentFilter {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         guard let display = content.displays.first(where: { $0.displayID == target.displayID }) else {
             throw ScreenFreezer.FreezeError.displayNotFound
         }
-        let pid = ProcessInfo.processInfo.processIdentifier
-        let ownApps = content.applications.filter { $0.processID == pid }
-        let pins = PinManager.shared.windowNumbers
-        let keptWindows = content.windows.filter { pins.contains($0.windowID) || including.contains($0.windowID) }
-        if ownApps.isEmpty {
-            // 理论上不会发生（此时遮罩还在）；保险起见按窗口排除
-            let excluded = ScreenFreezer.ownWindows(in: content).filter { !including.contains($0.windowID) }
-            return SCContentFilter(display: display, excludingWindows: excluded)
+        let chrome = Set([controlBar?.windowNumber, frameWindow?.windowNumber].compactMap { $0 }.map { CGWindowID($0) })
+        let excluded = content.windows.filter { chrome.contains($0.windowID) }
+        if excluded.count != chrome.count {
+            Log.capture.error("录屏：找不到控制条或红框的窗口，它们可能会录进视频")
         }
-        return SCContentFilter(display: display, excludingApplications: ownApps, exceptingWindows: keptWindows)
+        return SCContentFilter(display: display, excludingWindows: excluded)
     }
 
     private func makeSettings(for target: RecordingTarget, filter: SCContentFilter) throws -> ScreenRecorder.Settings {
@@ -298,6 +278,7 @@ final class RecordingManager: ObservableObject {
 
     /// 收起控制条、红框、点击高亮层
     private func hideChrome() {
+        SoundEffects.onSynthesizedSound = nil
         stopWatchingSystemEvents()
         autoPauseNote = nil
         controlBar?.close()
@@ -328,6 +309,16 @@ final class RecordingManager: ObservableObject {
         isMicrophoneMuted.toggle()
         recorder.setMicrophoneMuted(isMicrophoneMuted)
         controlBar?.refresh()
+    }
+
+    // MARK: - Velos 自己的提示音
+
+    /// Velos 放了一声提示音（截图的「咔嚓」、晾衣绳的声音）：录制中、录着系统声音时，直接混进音轨。
+    /// 系统不会把 Velos 自己的声音交给录屏（录制范围排除了控制条、红框，系统就连 Velos 的声音一起排除），所以由这里补上
+    /// - Parameter samples: 48kHz 单声道的声音
+    private func ownSoundPlayed(_ samples: [Float]) {
+        guard state == .recording, let recorder, recorder.settings.capturesSystemAudio else { return }
+        recorder.mixInOwnSound(samples)
     }
 
     // MARK: - 停止

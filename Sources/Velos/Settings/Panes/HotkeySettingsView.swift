@@ -230,7 +230,7 @@ final class HotkeyRecorderField: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let palette = GlassPalette(for: self)
+        let palette = WarmPalette(for: self)
         let rect = bounds.insetBy(dx: 1, dy: 1)
         let shape = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
         (isRecording ? palette.pressed : palette.hover).setFill()
@@ -259,7 +259,7 @@ final class HotkeyRecorderField: NSView {
     }
 
     /// 每个键画成一个小键帽：圆角方块 + 底部一道厚边，像真的键盘按键
-    private func drawKeycaps(_ keys: [String], palette: GlassPalette, live: Bool) {
+    private func drawKeycaps(_ keys: [String], palette: WarmPalette, live: Bool) {
         let font = roundedFont(ofSize: 12, weight: .semibold)
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: palette.ink]
         let capHeight: CGFloat = 18, gap: CGFloat = 4

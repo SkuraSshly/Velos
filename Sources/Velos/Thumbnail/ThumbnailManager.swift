@@ -365,14 +365,5 @@ final class ThumbnailManager {
     var debugNewestVideoURL: URL? { entries.last?.videoURL }
     func debugDismissAll() { for entry in entries { dismiss(entry) } }
     var debugNewestIsExporting: Bool { entries.last?.exportTask != nil }
-    var debugFrames: [CGRect] { entries.map(\.panel.frame) }
-    /// README 截图用：不需要视频文件的录屏缩略图
-    func debugShowRecording(poster: CGImage, videoSize: CGSize, duration: TimeInterval, on screen: NSScreen) {
-        let size = Self.fittedSize(videoSize)
-        let view = ThumbnailView(image: poster, size: size, scale: screen.backingScaleFactor, kind: .recording(duration: duration))
-        let entry = Entry(panel: Self.makePanel(size: size, view: view), view: view, capture: nil, videoURL: nil, lifetime: 600)
-        self.screen = screen
-        present(entry)
-    }
     #endif
 }

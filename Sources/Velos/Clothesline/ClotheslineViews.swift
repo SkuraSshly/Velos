@@ -225,7 +225,7 @@ private struct Knot: View {
 private struct CatchSlot: View {
     var body: some View {
         RoundedRectangle(cornerRadius: CardFrame.radius - CardFrame.inset, style: .continuous)
-            .strokeBorder(Color(nsColor: GlassPalette.accent), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+            .strokeBorder(Color(nsColor: WarmPalette.accent), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: CardFrame.radius - CardFrame.inset, style: .continuous))
             .overlay(
                 Text("松手挂上")
@@ -325,7 +325,7 @@ struct PeggedView: View {
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
                         .symbolRenderingMode(.palette)
-                        .foregroundStyle(.white, Color(nsColor: GlassPalette.accent))
+                        .foregroundStyle(.white, Color(nsColor: WarmPalette.accent))
                         .font(.system(size: 17, weight: .semibold))
                         .padding(5)
                         .allowsHitTesting(false)
@@ -353,7 +353,7 @@ struct PeggedView: View {
                         }
                         .foregroundStyle(on ? Color.white : Color.primary)
                         .frame(width: frame.width, height: frame.height)
-                        .background(on ? Circle().fill(Color(nsColor: GlassPalette.accent)) : nil)
+                        .background(on ? Circle().fill(Color(nsColor: WarmPalette.accent)) : nil)
                         .glassFrame(circle: true)
                         .position(x: frame.midX, y: frame.midY)
                         .opacity(hovering && !dragging && model.gifProgress[item.id] == nil ? 1 : 0)

@@ -1,6 +1,6 @@
 import AppKit
 
-/// 温暖磨砂风格的小标签（见 GlassStyle）：顶部提示条、选区尺寸、钉图缩放比例。
+/// 温暖磨砂风格的小标签（见 WarmStyle）：选区尺寸、钉图的缩放比例和透明度、缩略图上的时长和状态。
 /// 用 NSTextField 绘制文字（按屏幕倍数渲染，清晰锐利）。
 final class PillLabel: NSView {
     private let panel: FrostedPanel
@@ -26,8 +26,7 @@ final class PillLabel: NSView {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// 文字颜色：浅色模式暖棕、深色模式白色
-    var ink: NSColor { GlassPalette(for: self).ink }
-    var secondaryInk: NSColor { GlassPalette(for: self).secondaryInk }
+    var ink: NSColor { WarmPalette(for: self).ink }
 
     /// 设置文字并按文字大小调整自身尺寸
     func setText(_ text: NSAttributedString) {
@@ -40,7 +39,7 @@ final class PillLabel: NSView {
         field.frame = NSRect(x: padding.width, y: padding.height, width: ceil(textSize.width), height: ceil(textSize.height))
     }
 
-    /// 不拦截鼠标：提示条下面的区域照样可以拖选
+    /// 不拦截鼠标：标签下面的区域照样可以拖选
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     #if DEBUG

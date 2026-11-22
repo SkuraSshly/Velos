@@ -138,9 +138,4 @@ final class ClotheslineUndo {
             undoKey = nil
         }
     }
-
-    #if DEBUG
-    var debugStepCount: Int { steps.count }
-    var debugHasUndoKey: Bool { undoKey != nil }
-    #endif
 }

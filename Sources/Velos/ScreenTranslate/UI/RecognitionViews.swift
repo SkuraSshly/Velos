@@ -47,7 +47,7 @@ final class RecognitionHUD {
         label.setFrameOrigin(CGPoint(x: 38, y: ((size.height - label.frame.height) / 2).rounded()))
         panel.addSubview(icon)
         panel.addSubview(label)
-        let palette = GlassPalette(for: panel)
+        let palette = WarmPalette(for: panel)
         label.textColor = palette.ink
         icon.contentTintColor = palette.ink
         present(panel, size: size)

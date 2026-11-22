@@ -208,11 +208,6 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
         audioQueue.async { self.microphoneMuted = muted; self.mixer?.isMicrophoneMuted = muted }
     }
 
-    /// 录制中更换录制范围（同一块显示器，只改排除哪些窗口）
-    func updateFilter(_ filter: SCContentFilter) async throws {
-        try await stream?.updateContentFilter(filter)
-    }
-
     /// 停止录制并把文件写完；返回文件位置
     func stop() async throws -> URL {
         // 按下停止的时刻（与画面帧使用同一个时钟）。
@@ -277,6 +272,15 @@ final class ScreenRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
             lastFrameTime = adjusted
         } else {
             framesDropped += 1
+        }
+    }
+
+    /// Velos 自己的提示音：按现在的时刻放到时间线上，交给混音（暂停中不录）
+    func mixInOwnSound(_ samples: [Float]) {
+        let now = CMClockGetTime(CMClockGetHostTimeClock())
+        audioQueue.async {
+            guard let mixer = self.mixer, let adjusted = self.timeline.adjusted(now) else { return }
+            mixer.addOwnSound(samples, at: adjusted)
         }
     }
 

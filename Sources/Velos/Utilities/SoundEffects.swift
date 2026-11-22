@@ -25,16 +25,30 @@ enum SoundEffects {
         case send
         /// 录屏倒计时的每一秒（3、2、1）
         case countdown
-        /// 开始录屏、结束录屏（录屏不录 Velos 自己的声音，这两声不会出现在视频里）
+        /// 开始录屏、结束录屏（这两声和倒计时不会出现在视频里）
         case recordStart, recordStop
 
-        fileprivate func load() -> NSSound? {
+        /// 合成的声音（48kHz 单声道采样）；系统自带的声音（倒计时、开始 / 结束录屏）是 nil
+        private var samples: [Float]? {
+            switch self {
+            case .shutter: SynthesizedSound.shutter
+            case .hang: SynthesizedSound.tink
+            case .takeDown, .trash: SynthesizedSound.trash
+            case .send: SynthesizedSound.send
+            case .countdown, .recordStart, .recordStop: nil
+            }
+        }
+
+        fileprivate func load() -> (sound: NSSound, samples: [Float]?)? {
+            if let samples { return NSSound(data: SynthesizedSound.wav(samples)).map { ($0, samples) } }
+            return systemSound.map { ($0, nil) }
+        }
+
+        /// 系统自带的声音（倒计时、开始 / 结束录屏）
+        private var systemSound: NSSound? {
             let systemSounds = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/"
             switch self {
-            case .shutter: return SynthesizedSound.shutter
-            case .hang: return SynthesizedSound.tink
-            case .takeDown, .trash: return SynthesizedSound.trash
-            case .send: return SynthesizedSound.send
+            case .shutter, .hang, .takeDown, .trash, .send: return nil
             case .countdown:
                 let sound = NSSound(named: "Morse")?.copy() as? NSSound
                 sound?.volume = 0.3
@@ -48,25 +62,30 @@ enum SoundEffects {
         }
     }
 
-    /// 每种声音准备一次，之后每次放复制一份：几声可以叠着放，互不打断
-    private static var loaded: [Effect: NSSound] = [:]
+    /// 每种声音准备一次（合成的声音连采样一起留着），之后每次放复制一份：几声可以叠着放，互不打断
+    private static var loaded: [Effect: (sound: NSSound, samples: [Float]?)] = [:]
     private static let queue = DispatchQueue(label: "local.velos.sounds", qos: .userInitiated)
+
+    /// 放了一声合成的声音（48kHz 单声道采样）。录屏时由录屏接上，把这一声混进音轨，录完摘掉
+    static var onSynthesizedSound: (([Float]) -> Void)?
 
     static func play(_ effect: Effect) {
         guard Preferences.shared.soundEffects else { return }
-        guard let prototype = loaded[effect] ?? effect.load() else { return }
-        loaded[effect] = prototype
-        guard let sound = prototype.copy() as? NSSound else { return }
+        guard let prepared = loaded[effect] ?? effect.load() else { return }
+        loaded[effect] = prepared
+        guard let sound = prepared.sound.copy() as? NSSound else { return }
         queue.async { sound.play() }
+        if let samples = prepared.samples { onSynthesizedSound?(samples) }
     }
 }
 
-/// 照 Tendedero 网站的 Web Audio 做法合成的声音：同样的频率、长短、音量和滤波，算成一小段 WAV 交给 NSSound 放
+/// 照 Tendedero 网站的 Web Audio 做法合成的声音：同样的频率、长短、音量和滤波，算成 48kHz 单声道的采样
+///（放的时候做成一小段 WAV 交给 NSSound；录屏时同样的采样直接混进音轨）
 enum SynthesizedSound {
     static let sampleRate = 48_000.0   // 和浏览器里 Web Audio 默认的一样
 
     /// 快门：一小段 2600 Hz 附近的噪声，75 毫秒后再一段 1800 Hz 附近的
-    static var shutter: NSSound? {
+    static var shutter: [Float] {
         make(length: 0.16) { mix in
             mix.noise(duration: 0.05, gain: 0.22, frequency: 2600)
             mix.noise(duration: 0.07, gain: 0.18, frequency: 1800, at: 0.075)
@@ -74,7 +93,7 @@ enum SynthesizedSound {
     }
 
     /// 叮：E7（2637 Hz）加上高五度的泛音
-    static var tink: NSSound? {
+    static var tink: [Float] {
         make(length: 0.25) { mix in
             mix.tone(frequency: 2637, duration: 0.22, gain: 0.05)
             mix.tone(frequency: 3951, duration: 0.12, gain: 0.018)
@@ -82,7 +101,7 @@ enum SynthesizedSound {
     }
 
     /// 拿下、删除：一段 900 Hz 附近的噪声，稍后一个低沉的三角波
-    static var trash: NSSound? {
+    static var trash: [Float] {
         make(length: 0.3) { mix in
             mix.noise(duration: 0.28, gain: 0.12, frequency: 900)
             mix.tone(frequency: 180, duration: 0.2, gain: 0.03, wave: .triangle, at: 0.04)
@@ -90,7 +109,7 @@ enum SynthesizedSound {
     }
 
     /// 发过去：两个上扬的音（A5、E6）
-    static var send: NSSound? {
+    static var send: [Float] {
         make(length: 0.2) { mix in
             mix.tone(frequency: 880, duration: 0.08, gain: 0.04)
             mix.tone(frequency: 1320, duration: 0.12, gain: 0.035, at: 0.06)
@@ -155,14 +174,14 @@ enum SynthesizedSound {
         }
     }
 
-    private static func make(length: Double, _ build: (inout Mix) -> Void) -> NSSound? {
+    private static func make(length: Double, _ build: (inout Mix) -> Void) -> [Float] {
         var mix = Mix(samples: [Float](repeating: 0, count: Int(length * sampleRate)))
         build(&mix)
-        return NSSound(data: wav(mix.samples))
+        return mix.samples
     }
 
     /// 单声道 16 位 WAV
-    private static func wav(_ samples: [Float]) -> Data {
+    static func wav(_ samples: [Float]) -> Data {
         var data = Data()
         func append<T: FixedWidthInteger>(_ value: T) { withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) } }
         let rate = UInt32(sampleRate)

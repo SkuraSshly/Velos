@@ -77,10 +77,10 @@ enum WarmCursor {
             arrows.addLines(between: [p(headTip, 0), p(headBase, -headHalfWidth), p(headBase, headHalfWidth)])
             arrows.closeSubpath()
         }
-        return Shape(parts: [.init(path: arrows, fill: GlassPalette.accent, edge: GlassPalette.accentEdge)]) { ctx in
+        return Shape(parts: [.init(path: arrows, fill: WarmPalette.accent, edge: WarmPalette.accentEdge)]) { ctx in
             ctx.setFillColor(.white)
             ctx.fillEllipse(in: CGRect(x: c.x - 2.6, y: c.y - 2.6, width: 5.2, height: 5.2))
-            ctx.setFillColor(GlassPalette.deepInk.cgColor)
+            ctx.setFillColor(WarmPalette.deepInk.cgColor)
             ctx.fillEllipse(in: CGRect(x: c.x - 1.7, y: c.y - 1.7, width: 3.4, height: 3.4))
         }
     }
@@ -97,10 +97,10 @@ enum WarmCursor {
             path.closeSubpath()
             return path
         }
-        let strong = Shape.Part(path: triangle(1), fill: GlassPalette.accent, edge: GlassPalette.accentEdge)
+        let strong = Shape.Part(path: triangle(1), fill: WarmPalette.accent, edge: WarmPalette.accentEdge)
         let back = outward
-            ? Shape.Part(path: triangle(-1), fill: GlassPalette.accentPale, edge: GlassPalette.accentPaleEdge)
-            : Shape.Part(path: triangle(-1), fill: GlassPalette.accent, edge: GlassPalette.accentEdge)
+            ? Shape.Part(path: triangle(-1), fill: WarmPalette.accentPale, edge: WarmPalette.accentPaleEdge)
+            : Shape.Part(path: triangle(-1), fill: WarmPalette.accent, edge: WarmPalette.accentEdge)
         return Shape(parts: [strong, back])
     }
 
@@ -108,7 +108,7 @@ enum WarmCursor {
     /// 自测：把几种光标放大画在浅色、深色、杏色、蓝色背景上，方便看效果（每行一种背景，每列一种光标）
     static func debugRenderPreview(to url: URL) {
         let scale: CGFloat = 5
-        let backgrounds: [NSColor] = [.white, NSColor(white: 0.18, alpha: 1), GlassPalette.accent,
+        let backgrounds: [NSColor] = [.white, NSColor(white: 0.18, alpha: 1), WarmPalette.accent,
                                       NSColor(srgbRed: 0.13, green: 0.27, blue: 0.53, alpha: 1)]
         let shapes: [(CGPoint) -> Shape] = [
             move(center:),

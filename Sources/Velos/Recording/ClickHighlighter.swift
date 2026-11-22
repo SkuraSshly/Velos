@@ -65,7 +65,7 @@ final class ClickHighlighter {
         case .leftMouseDown, .rightMouseDown:
             guard screenFrame.contains(location) else { return }
             pressed[button]?.removeFromSuperlayer()
-            pressed[button] = press(at: point, color: button == 0 ? GlassPalette.accent : GlassPalette.hot)
+            pressed[button] = press(at: point, color: button == 0 ? WarmPalette.accent : WarmPalette.hot)
         case .leftMouseDragged, .rightMouseDragged:
             guard let layer = pressed[button] else { return }
             CATransaction.begin()

@@ -40,7 +40,7 @@ enum DebugSnapshots {
         }
     }
 
-    /// 把遮罩（底图 + 蒙版 + 边框 + 提示条 + 放大镜）画成 PNG，供界面自测检查
+    /// 把遮罩（底图 + 蒙版 + 边框 + 放大镜）画成 PNG，供界面自测检查
     static func renderOverlay(_ view: NSView?, to url: URL) {
         guard let view, let layer = view.layer else { return }
         let scale = view.window?.backingScaleFactor ?? 2

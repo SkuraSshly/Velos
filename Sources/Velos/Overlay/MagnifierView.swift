@@ -61,7 +61,7 @@ final class MagnifierView: NSView {
             bands.addRect(CGRect(x: center, y: 0, width: p, height: side))
             bands.addRect(CGRect(x: 0, y: center, width: side, height: p))
             crosshairLayer.path = bands
-            crosshairLayer.fillColor = GlassPalette.accent.withAlphaComponent(0.3).cgColor
+            crosshairLayer.fillColor = WarmPalette.accent.withAlphaComponent(0.3).cgColor
             container.addSublayer(crosshairLayer)
 
             // 中心像素的方框：白线 + 深色描边，在任何颜色上都看得清
@@ -70,7 +70,7 @@ final class MagnifierView: NSView {
             centerBoxLayer.fillColor = nil
             centerBoxLayer.strokeColor = NSColor.white.cgColor
             centerBoxLayer.lineWidth = 1.5
-            centerBoxLayer.shadowColor = GlassPalette.shadow.cgColor
+            centerBoxLayer.shadowColor = WarmPalette.shadow.cgColor
             centerBoxLayer.shadowOpacity = 1
             centerBoxLayer.shadowRadius = 0.6
             centerBoxLayer.shadowOffset = .zero
@@ -80,7 +80,7 @@ final class MagnifierView: NSView {
 
         // 信息区：坐标 + 颜色圆点 + 颜色值（墨色、圆润等宽数字，移动时不跳动）
         let font = roundedFont(ofSize: 11.5, weight: .semibold, monospacedDigits: true)
-        let ink = GlassPalette(for: self).ink
+        let ink = WarmPalette(for: self).ink
         for label in [coordinateLabel, colorLabel] {
             label.font = font
             label.textColor = ink

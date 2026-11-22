@@ -72,7 +72,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             // 红色圆点（暂停时是杏色暂停图标）+ 已录制时长（不含暂停）
             item.length = NSStatusItem.variableLength
             let paused = manager.isPaused
-            let config = NSImage.SymbolConfiguration(paletteColors: [paused ? GlassPalette.accent : OverlayAccent.recording])
+            let config = NSImage.SymbolConfiguration(paletteColors: [paused ? WarmPalette.accent : OverlayAccent.recording])
             button.image = NSImage(systemSymbolName: paused ? "pause.circle.fill" : "record.circle.fill",
                                    accessibilityDescription: paused ? "录制已暂停" : "正在录制")?
                 .withSymbolConfiguration(config)

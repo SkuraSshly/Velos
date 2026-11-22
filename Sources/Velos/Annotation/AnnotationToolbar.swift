@@ -1,6 +1,6 @@
 import AppKit
 
-/// 标注工具栏（温暖磨砂风格，见 GlassStyle）：
+/// 标注工具栏（温暖磨砂风格，见 WarmStyle）：
 /// 第一行：10 个标注工具 | 撤销 重做 | 钉图 保存 | 取消 [✓ 完成]
 /// 第二行（选了工具或选中了标注时出现）：6 种颜色 + 任意颜色 | 3 档粗细 / 字号 / 强度 | 不透明度
 final class AnnotationToolbar: NSView {
@@ -25,17 +25,18 @@ final class AnnotationToolbar: NSView {
     private var toolButtons: [AnnotationTool: ToolbarButton] = [:]
     /// 标出选中工具的那块玻璃：macOS 26 起用系统原生的液态玻璃变形（和 iOS 26 切换标签栏一样流过去），
     /// 更早的系统用自己算的弹簧透镜
+    /// 选中工具的标记：macOS 26 起是会流动的液态玻璃，更早的系统是滑动的杏色块
     private let nativeLens = NativeGlassLens()
-    private let toolLens = SlidingGlassLens()
+    private lazy var fallbackLens = SlidingSelection()
     private var lensShown = false
     private var actionButtons: [Action: ToolbarButton] = [:]
-    private let doneButton = PillButton(title: "完成", symbol: "checkmark", color: GlassPalette.accent, help: "完成（Enter）")
+    private let doneButton = PillButton(title: "完成", symbol: "checkmark", color: WarmPalette.accent, help: "完成（Enter）")
     private var colorButtons: [SwatchButton] = []
     private let sizeSlider = SizeSlider()
     private let fillButton = ToolbarButton(symbol: "rectangle.fill", help: "实心")
-    private let propertySeparator = GlassSeparator()
+    private let propertySeparator = WarmSeparator()
     private let customColorButton = CustomColorButton()
-    private let opacitySeparator = GlassSeparator()
+    private let opacitySeparator = WarmSeparator()
     private let opacitySlider = OpacitySlider()
     private let blending: NSVisualEffectView.BlendingMode
     /// 截图界面有「长截图」按钮；重新编辑窗口没有
@@ -92,7 +93,7 @@ final class AnnotationToolbar: NSView {
             x += width + Self.spacing
         }
         func separator() {
-            let line = GlassSeparator(frame: CGRect(x: x + 5, y: Self.padding + 8, width: 1.5, height: Self.buttonSize - 16))
+            let line = WarmSeparator(frame: CGRect(x: x + 5, y: Self.padding + 8, width: 1.5, height: Self.buttonSize - 16))
             mainBar.addSubview(line)
             x += 13
         }
@@ -111,7 +112,7 @@ final class AnnotationToolbar: NSView {
             add(button, width: Self.buttonSize)
             if toolButtons.count == 1 {
                 // 透镜放在工具按钮下面
-                mainBar.addSubview(nativeLens?.view ?? toolLens.view, positioned: .below, relativeTo: button)
+                mainBar.addSubview(nativeLens?.view ?? fallbackLens.view, positioned: .below, relativeTo: button)
             }
         }
         separator()
@@ -205,7 +206,7 @@ final class AnnotationToolbar: NSView {
         if let nativeLens {
             nativeLens.select(tool.flatMap { AnnotationTool.allCases.firstIndex(of: $0) }, animated: lensShown)
         } else {
-            toolLens.move(to: tool.flatMap { toolButtons[$0]?.frame }, animated: lensShown)
+            fallbackLens.move(to: tool.flatMap { toolButtons[$0]?.frame }, animated: lensShown)
         }
         lensShown = true
         if let longCapture = actionButtons[.longCapture] {
@@ -302,7 +303,7 @@ extension NSColor {
 }
 
 /// 任意颜色按钮：彩虹色的圆环；当前颜色不是预设颜色时，圆环中间显示这个颜色并标为选中
-final class CustomColorButton: GlassControl {
+final class CustomColorButton: WarmControl {
     var customColor: NSColor? { didSet { needsDisplay = true } }
 
     override init(frame: NSRect) {
@@ -318,7 +319,7 @@ final class CustomColorButton: GlassControl {
         let diameter: CGFloat = isHovered && customColor == nil ? 19 : 18
         let circle = CGRect(x: bounds.midX - diameter / 2, y: bounds.midY - diameter / 2, width: diameter, height: diameter)
         if customColor != nil {
-            GlassPalette.accent.setStroke()
+            WarmPalette.accent.setStroke()
             let ring = NSBezierPath(ovalIn: circle.insetBy(dx: -3.5, dy: -3.5))
             ring.lineWidth = 2
             ring.stroke()
@@ -352,7 +353,7 @@ final class CustomColorButton: GlassControl {
 }
 
 /// 颜色圆点：白色描边的小圆，选中时外面多一圈杏色
-final class SwatchButton: GlassControl {
+final class SwatchButton: WarmControl {
     let color: NSColor
     var isSelected = false { didSet { needsDisplay = true } }
 
@@ -370,7 +371,7 @@ final class SwatchButton: GlassControl {
         let diameter: CGFloat = isHovered && !isSelected ? 19 : 18
         let circle = CGRect(x: bounds.midX - diameter / 2, y: bounds.midY - diameter / 2, width: diameter, height: diameter)
         if isSelected {
-            GlassPalette.accent.setStroke()
+            WarmPalette.accent.setStroke()
             let ring = NSBezierPath(ovalIn: circle.insetBy(dx: -3.5, dy: -3.5))
             ring.lineWidth = 2
             ring.stroke()
@@ -378,7 +379,7 @@ final class SwatchButton: GlassControl {
         // 柔和的小投影，让圆点「浮」在磨砂底上
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow()
-        shadow.shadowColor = GlassPalette.shadow.withAlphaComponent(0.25)
+        shadow.shadowColor = WarmPalette.shadow.withAlphaComponent(0.25)
         shadow.shadowBlurRadius = 2
         shadow.shadowOffset = CGSize(width: 0, height: -1)
         shadow.set()

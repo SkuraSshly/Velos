@@ -64,10 +64,23 @@ enum ScreenFreezer {
     /// 标记「普通窗口」的 identifier：设置、标注编辑、视频预览。
     /// 它们和其他 App 的窗口一样，可以被截图、录屏、截屏翻译截到（也能悬停识别、单击选中）。
 
-    /// 可以被截到的 Velos 窗口：上面那些普通窗口 + 钉图（用户钉在屏幕上的内容，与 Snipaste 一致）
+    /// 可以被截到的 Velos 窗口：上面那些普通窗口 + 钉图（用户钉在屏幕上的内容，与 Snipaste 一致）+ 设置窗口
     static var capturableOwnWindows: Set<CGWindowID> {
         let normal = NSApp.windows.filter { $0.identifier == .velosCapturable && $0.isVisible && $0.windowNumber > 0 }
-        return Set(normal.map { CGWindowID($0.windowNumber) }).union(PinManager.shared.windowNumbers)
+        return Set(normal.map { CGWindowID($0.windowNumber) }).union(PinManager.shared.windowNumbers).union(settingsWindows)
+    }
+
+    /// 设置窗口：开在子进程 VelosSettings 里。截图、录屏用的窗口列表把子进程的窗口算到启动它的 Velos 头上，
+    /// 不单独放行就会被当成 Velos 的临时界面排除掉（截不到设置窗口）。这里按真正的进程号从系统窗口列表里找出来
+    static var settingsWindows: Set<CGWindowID> {
+        let pids = Set(NSRunningApplication.runningApplications(withBundleIdentifier: AppIdentity.settingsBundleID)
+            .filter { !$0.isTerminated }.map(\.processIdentifier))
+        guard !pids.isEmpty,
+              let infos = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return [] }
+        return Set(infos.compactMap { info in
+            guard let owner = info[kCGWindowOwnerPID as String] as? pid_t, pids.contains(owner) else { return nil }
+            return info[kCGWindowNumber as String] as? CGWindowID
+        })
     }
 
     /// 截图时要排除的 Velos 窗口：截图 / 录屏界面、缩略图、录制控件、截屏翻译的结果窗口和提示等临时界面。

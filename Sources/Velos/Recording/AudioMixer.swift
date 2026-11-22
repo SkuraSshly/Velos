@@ -101,6 +101,29 @@ final class AudioMixer {
         flush(final: false)
     }
 
+    /// 叠加 Velos 自己的提示音（48kHz 单声道，左右声道一样）。它不是一路「来源」：不影响什么时候输出，
+    /// 只叠在已有的缓冲区上（缓冲区不够长就补静音），已经输出过的部分丢掉
+    func addOwnSound(_ samples: [Float], at time: CMTime) {
+        var index = Int64((CMTimeGetSeconds(CMTimeSubtract(time, startTime)) * Self.sampleRate).rounded())
+        var offset = 0
+        if index < baseIndex {
+            offset = Int(baseIndex - index)
+            index = baseIndex
+        }
+        guard offset < samples.count else { return }
+        let count = samples.count - offset
+        let needed = Int(index - baseIndex) + count
+        if left.count < needed {
+            left.append(contentsOf: repeatElement(0, count: needed - left.count))
+            right.append(contentsOf: repeatElement(0, count: needed - right.count))
+        }
+        let start = Int(index - baseIndex)
+        for i in 0..<count {
+            left[start + i] += samples[offset + i]
+            right[start + i] += samples[offset + i]
+        }
+    }
+
     // MARK: - 输出
 
     /// 把两路都已写到的部分输出；final 为 true 时把剩下的全部输出（结束录制时）

@@ -10,7 +10,7 @@ import AppKit
 /// AppKit 界面（截图工具栏、控制条、缩略图等浮在屏幕上的磨砂面板）的配色。
 /// 主色 accent（杏色）、hot（珊瑚红）也是设置窗口（SwiftUI，见 SettingsPane.swift 的 Color 扩展）的来源；
 /// 文字、细线这几种两边分别按各自的底色调过、数值略有不同，改动时两边一起看
-struct GlassPalette {
+struct WarmPalette {
     let isDark: Bool
 
     init(for view: NSView) {
@@ -82,7 +82,7 @@ final class FrostedPanel: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.masksToBounds = false
-        layer?.shadowColor = GlassPalette.shadow.cgColor
+        layer?.shadowColor = WarmPalette.shadow.cgColor
         layer?.shadowOpacity = shadowRadius < 10 ? 0.18 : 0.22
         layer?.shadowRadius = shadowRadius
         layer?.shadowOffset = CGSize(width: 0, height: shadowRadius < 10 ? -2 : -4)
@@ -117,7 +117,7 @@ final class FrostedPanel: NSView {
     }
 
     private func applyPalette() {
-        let palette = GlassPalette(for: self)
+        let palette = WarmPalette(for: self)
         effect.appearance = NSAppearance(named: palette.isDark ? .darkAqua : .aqua)
         tintView.layer?.backgroundColor = palette.tint.cgColor
         effect.layer?.borderWidth = 0.5
@@ -131,9 +131,9 @@ final class FrostedPanel: NSView {
 }
 
 /// 面板里的细分隔线
-final class GlassSeparator: NSView {
+final class WarmSeparator: NSView {
     override func draw(_ dirtyRect: NSRect) {
-        GlassPalette(for: self).separator.setFill()
+        WarmPalette(for: self).separator.setFill()
         NSBezierPath(roundedRect: bounds, xRadius: bounds.width / 2, yRadius: bounds.width / 2).fill()
     }
 }
@@ -141,7 +141,7 @@ final class GlassSeparator: NSView {
 // MARK: - 按钮
 
 /// 悬停高亮的公共逻辑
-class GlassControl: NSView {
+class WarmControl: NSView {
     var action: (() -> Void)?
     var isEnabled = true { didSet { updateAppearance() } }
     private(set) var isHovered = false
@@ -190,28 +190,15 @@ class GlassControl: NSView {
     /// 子类根据状态刷新外观
     func updateAppearance() {}
 
-    var palette: GlassPalette { GlassPalette(for: self) }
-}
-
-/// 一小块液态玻璃（macOS 26 起），用来标出选中的工具；更早的系统返回 nil
-/// - Parameter tint: 给玻璃染的颜色（杏色）；nil 是透明的玻璃
-func makeLiquidGlass(tint: NSColor? = nil) -> NSView? {
-    guard #available(macOS 26, *) else { return nil }
-    let glass = NSGlassEffectView()
-    glass.style = .regular
-    glass.tintColor = tint
-    if #available(macOS 27, *) { glass.effectIsInteractive = true }   // 按下、悬停时玻璃有反应
-    return glass
+    var palette: WarmPalette { WarmPalette(for: self) }
 }
 
 /// 图标按钮（圆角方块）：平时是暖棕色图标，悬停有淡淡的暖色底；选中时是杏色实心 + 白色图标。
 /// 一组只能选一个、或各自开关的按钮（标注工具、录屏的声音 / 麦克风 / 指针），选中块由外面一块会流动的杏色液态玻璃代替（见 NativeGlassLens），这里不画
-final class ToolbarButton: GlassControl {
+final class ToolbarButton: WarmControl {
     var isSelected = false { didSet { updateAppearance() } }
     /// 一直显示成选中的样子
     var isProminent = false { didSet { updateAppearance() } }
-    /// 选中时的颜色
-    var accent: NSColor = GlassPalette.accent { didSet { updateAppearance() } }
     /// 选中时自己画杏色底。由外面的玻璃标出选中项时关掉（图标照样变白）
     var drawsOwnSelection = true { didSet { updateAppearance() } }
     private let iconView = NSImageView()
@@ -256,7 +243,7 @@ final class ToolbarButton: GlassControl {
     override func updateAppearance() {
         let filled = isSelected || isProminent
         let background: NSColor = if filled && drawsOwnSelection {
-            isPressed ? accent.blended(withFraction: 0.15, of: .black) ?? accent : accent
+            isPressed ? WarmPalette.accent.blended(withFraction: 0.15, of: .black) ?? WarmPalette.accent : WarmPalette.accent
         } else if isPressed && !filled {
             palette.pressed
         } else if isHovered && isEnabled && !filled {
@@ -269,13 +256,13 @@ final class ToolbarButton: GlassControl {
     }
 }
 
-/// 一组按钮里标出选中项的那块玻璃「透镜」，换选中项时照 iOS 26 切换栏目的样子动：
+/// macOS 26 以前标出选中工具的杏色圆角块（macOS 26 起用会流动的液态玻璃，见 NativeGlassLens），换选中项时这样动：
 /// 1. 浮起：一下子变大一圈，边上出现一道亮边和一点影子
 /// 2. 滑过去：顺着移动的方向拉长（越快越长），带一点回弹
 /// 3. 落下：变回原来的大小，亮边、影子消失
 /// 第一次选中时从小一点弹出来，取消选中时缩小淡出。用弹簧物理一帧一帧算（120 帧 / 秒），动完就停，平时不占资源。
 @MainActor
-final class SlidingGlassLens {
+final class SlidingSelection {
     /// 放进按钮所在的那一层（在按钮下面）
     let view: NSView
     private var timer: Timer?
@@ -287,14 +274,9 @@ final class SlidingGlassLens {
     private var size = CGSize(width: 32, height: 32)
 
     init() {
-        if let glass = makeLiquidGlass(tint: GlassPalette.accent) {
-            view = glass
-        } else {
-            view = NSView()
-            view.wantsLayer = true
-            view.layer?.backgroundColor = GlassPalette.accent.cgColor
-        }
+        view = NSView()
         view.wantsLayer = true
+        view.layer?.backgroundColor = WarmPalette.accent.cgColor
         view.alphaValue = 0
         view.layer?.masksToBounds = false
         view.layer?.shadowColor = NSColor.black.cgColor
@@ -372,11 +354,6 @@ final class SlidingGlassLens {
         CATransaction.setDisableActions(true)
         view.frame = CGRect(x: x - width / 2, y: centerY - height / 2, width: width, height: height).integral
         view.alphaValue = max(0, min(1, appear))
-        if #available(macOS 26, *), let glass = view as? NSGlassEffectView {
-            glass.cornerRadius = GlassShape.selectionRadius
-        } else {
-            view.layer?.cornerRadius = GlassShape.selectionRadius
-        }
         // 浮起时：一道亮边 + 一点影子
         view.layer?.borderWidth = lift > 0.02 ? 1 : 0
         view.layer?.borderColor = NSColor.white.withAlphaComponent(0.75 * lift).cgColor
@@ -388,7 +365,7 @@ final class SlidingGlassLens {
 }
 
 /// 胶囊按钮（图标 + 文字）：「完成」杏色、「开始录制」「停止」珊瑚红，白字
-final class PillButton: GlassControl {
+final class PillButton: WarmControl {
     var title: String { didSet { needsDisplay = true } }
     var symbol: String { didSet { needsDisplay = true } }
     var color: NSColor { didSet { needsDisplay = true } }
@@ -440,7 +417,7 @@ final class PillButton: GlassControl {
 }
 
 /// 胶囊形分段选择（帧率 30 / 60）
-final class SegmentedPill: GlassControl {
+final class SegmentedPill: WarmControl {
     let titles: [String]
     var selectedIndex = 0 {
         didSet {
@@ -502,7 +479,7 @@ final class SegmentedPill: GlassControl {
 
         if lens == nil {
             // 旧系统：选中是一块杏色的圆角块
-            GlassPalette.accent.setFill()
+            WarmPalette.accent.setFill()
             let segment = segmentRect(selectedIndex)
             NSBezierPath(roundedRect: segment, xRadius: 7, yRadius: 7).fill()
         }
@@ -533,7 +510,7 @@ final class OverlayDrawing: NSView {
 
 /// 温暖磨砂风格的下拉菜单（代替系统菜单，外观与工具栏一致）。
 /// 显示在所在视图里；点菜单外任何地方、或按 Esc 都会关闭。
-final class GlassMenu: NSView {
+final class WarmMenu: NSView {
     struct Item {
         let id: String
         let title: String
@@ -550,8 +527,8 @@ final class GlassMenu: NSView {
     ///   - anchor: 触发按钮在 superview 中的位置；菜单默认出现在它上方（下方放不下时出现在下方）
     @discardableResult
     static func show(items: [Item], in superview: NSView, anchor: CGRect,
-                     blending: NSVisualEffectView.BlendingMode, onSelect: @escaping (String) -> Void) -> GlassMenu {
-        let menu = GlassMenu(items: items, blending: blending)
+                     blending: NSVisualEffectView.BlendingMode, onSelect: @escaping (String) -> Void) -> WarmMenu {
+        let menu = WarmMenu(items: items, blending: blending)
         menu.onSelect = onSelect
         menu.catcher.frame = superview.bounds
         menu.catcher.onDismiss = { [weak menu] in menu?.close() }
@@ -598,10 +575,10 @@ final class GlassMenu: NSView {
 }
 
 /// 菜单的一行：左侧勾选（杏色），右侧名称；悬停时圆角高亮
-private final class GlassMenuRow: GlassControl {
-    private let item: GlassMenu.Item
+private final class GlassMenuRow: WarmControl {
+    private let item: WarmMenu.Item
 
-    init(item: GlassMenu.Item) {
+    init(item: WarmMenu.Item) {
         self.item = item
         super.init(frame: .zero)
     }
@@ -618,7 +595,7 @@ private final class GlassMenuRow: GlassControl {
         }
         if item.isSelected {
             let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .bold)
-                .applying(.init(paletteColors: [GlassPalette.accent]))
+                .applying(.init(paletteColors: [WarmPalette.accent]))
             if let check = NSImage(systemSymbolName: "checkmark", accessibilityDescription: nil)?.withSymbolConfiguration(config) {
                 check.draw(in: CGRect(x: 10, y: (bounds.height - check.size.height) / 2,
                                       width: check.size.width, height: check.size.height))

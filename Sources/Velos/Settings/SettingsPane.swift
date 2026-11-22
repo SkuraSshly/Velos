@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// 设置窗口的「温暖磨砂」风格（和 2.7 一样，和橙色图标、截图工具栏同一套颜色，见 GlassStyle.swift）：
+// 设置窗口的「温暖磨砂」风格（和 2.7 一样，和橙色图标、截图工具栏同一套颜色，见 WarmStyle.swift）：
 // - 奶油色的磨砂底，角落里两团柔和的杏色、珊瑚色光晕；圆角卡片；圆润字体；暖色的图标小方块
 // - 选中块（侧栏、分段选择）是染成杏色的液态玻璃，换位置时像液体一样流过去；开关的小圆块是透明的玻璃
 // - 每行左边标题、右边控件，不写说明文字（看不懂就改布局）
@@ -9,8 +9,8 @@ import SwiftUI
 
 // MARK: - 配色
 
-/// 设置窗口、翻译结果窗口（SwiftUI）的配色。主色 accent（杏色）、hot（珊瑚红）取自 GlassPalette；
-/// 文字、细线等按 SwiftUI 窗口的底色单独调过，和 GlassPalette 里的同名颜色数值略有不同，改动时两边一起看
+/// 设置窗口、翻译结果窗口（SwiftUI）的配色。主色 accent（杏色）、hot（珊瑚红）取自 WarmPalette；
+/// 文字、细线等按 SwiftUI 窗口的底色单独调过，和 WarmPalette 里的同名颜色数值略有不同，改动时两边一起看
 extension Color {
     private static func warm(light: NSColor, dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
@@ -19,21 +19,21 @@ extension Color {
     }
 
     /// 杏色：选中、开关开着、主按钮
-    static let accent = Color(nsColor: GlassPalette.accent)
+    static let accent = Color(nsColor: WarmPalette.accent)
     /// 珊瑚红：录屏、未授权
-    static let hot = Color(nsColor: GlassPalette.hot)
+    static let hot = Color(nsColor: WarmPalette.hot)
     /// 文字和图标（暖棕 / 奶白）
-    static let ink = warm(light: GlassPalette.deepInk, dark: NSColor(srgbRed: 0.98, green: 0.92, blue: 0.86, alpha: 1))
-    static let inkSecondary = warm(light: GlassPalette.deepInk.withAlphaComponent(0.58),
+    static let ink = warm(light: WarmPalette.deepInk, dark: NSColor(srgbRed: 0.98, green: 0.92, blue: 0.86, alpha: 1))
+    static let inkSecondary = warm(light: WarmPalette.deepInk.withAlphaComponent(0.58),
                                    dark: NSColor(srgbRed: 0.98, green: 0.92, blue: 0.86, alpha: 0.55))
     /// 卡片底色
-    static let settingsCard = warm(light: NSColor(srgbRed: 1, green: 0.99, blue: 0.975, alpha: 0.72),
+    static let warmCard = warm(light: NSColor(srgbRed: 1, green: 0.99, blue: 0.975, alpha: 0.72),
                                    dark: NSColor(srgbRed: 0.30, green: 0.24, blue: 0.20, alpha: 0.55))
     /// 卡片里的分隔线、卡片的细边
     static let hairline = warm(light: NSColor(srgbRed: 0.45, green: 0.33, blue: 0.22, alpha: 0.13),
                                dark: NSColor(srgbRed: 1, green: 0.9, blue: 0.8, alpha: 0.12))
     /// 关着的开关、分段选择的轨道、悬停的底色
-    static let glassTrack = warm(light: NSColor(srgbRed: 0.45, green: 0.33, blue: 0.22, alpha: 0.12),
+    static let warmTrack = warm(light: NSColor(srgbRed: 0.45, green: 0.33, blue: 0.22, alpha: 0.12),
                                  dark: NSColor(srgbRed: 1, green: 0.9, blue: 0.8, alpha: 0.13))
     /// 窗口底色上叠的奶油色渐变
     static let warmWashTop = warm(light: NSColor(srgbRed: 1, green: 0.95, blue: 0.89, alpha: 0.78),
@@ -42,7 +42,6 @@ extension Color {
                                      dark: NSColor(srgbRed: 0.18, green: 0.14, blue: 0.12, alpha: 0.78))
 
     // 图标小方块的几种暖色
-    static let chipHoney = Color(red: 0.95, green: 0.68, blue: 0.25)
     static let chipSage = Color(red: 0.45, green: 0.70, blue: 0.47)
     static let chipSky = Color(red: 0.38, green: 0.62, blue: 0.88)
     static let chipLavender = Color(red: 0.62, green: 0.52, blue: 0.85)
@@ -145,7 +144,7 @@ struct SettingsSection<Content: View>: View {
             }
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.settingsCard)
+                    .fill(Color.warmCard)
                     .shadow(color: Color(red: 0.35, green: 0.2, blue: 0.1).opacity(0.07), radius: 8, y: 2)
             )
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
@@ -224,7 +223,7 @@ private struct GlassSwitch: View {
                 Capsule()
                     .fill(isOn ? AnyShapeStyle(LinearGradient(colors: [Color.accent.opacity(0.85), .accent],
                                                               startPoint: .top, endPoint: .bottom))
-                               : AnyShapeStyle(Color.glassTrack))
+                               : AnyShapeStyle(Color.warmTrack))
                     .frame(width: size.width, height: size.height)
                     .animation(.easeOut(duration: 0.2), value: isOn)
                 LiquidSelection(rect: CGRect(x: isOn ? size.width - inset - knob.width : inset, y: inset,
@@ -270,7 +269,7 @@ struct GlassSegmented<Value: Hashable>: View {
     var body: some View {
         let index = CGFloat(options.firstIndex { $0.value == selection } ?? 0)
         ZStack(alignment: .topLeading) {
-            Capsule().fill(Color.glassTrack)
+            Capsule().fill(Color.warmTrack)
             LiquidSelection(rect: CGRect(x: index * segmentWidth + inset, y: inset,
                                          width: segmentWidth - inset * 2, height: height - inset * 2),
                             cornerRadius: (height - inset * 2) / 2)
@@ -306,7 +305,7 @@ struct CapsuleButtonStyle: ButtonStyle {
             .foregroundStyle(prominent ? Color.white : Color.ink)
             .padding(.horizontal, 11)
             .frame(height: 24)
-            .background(Capsule().fill(prominent ? AnyShapeStyle(Color.accent) : AnyShapeStyle(Color.glassTrack)))
+            .background(Capsule().fill(prominent ? AnyShapeStyle(Color.accent) : AnyShapeStyle(Color.warmTrack)))
             .overlay(Capsule().strokeBorder(Color.hairline, lineWidth: prominent ? 0 : 0.5))
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .brightness(configuration.isPressed ? -0.06 : 0)

@@ -1,7 +1,7 @@
 import AppKit
 import AVFoundation
 
-/// 录制选项条（温暖磨砂风格，见 GlassStyle）：
+/// 录制选项条（温暖磨砂风格，见 WarmStyle）：
 /// [系统声音][麦克风 ▾][指针] | [30 | 60] | [● 开始录制]
 /// 选项直接读写设置，下次录屏沿用上次的选择，不需要每次重新设置。
 final class RecordingOptionsBar: NSView {
@@ -16,9 +16,9 @@ final class RecordingOptionsBar: NSView {
     private let deviceButton = ToolbarButton(symbol: "chevron.down", help: "选择麦克风")
     private let cursorButton = ToolbarButton(symbol: "cursorarrow", help: "录制鼠标指针")
     private let frameRate = SegmentedPill(titles: ["30", "60"], help: "帧率（帧 / 秒）")
-    private let startButton = PillButton(title: "开始录制", symbol: "record.circle", color: GlassPalette.hot,
+    private let startButton = PillButton(title: "开始录制", symbol: "record.circle", color: WarmPalette.hot,
                                          help: "开始录制（Enter）")
-    private var deviceMenu: GlassMenu?
+    private var deviceMenu: WarmMenu?
     /// 开着的开关（声音、麦克风、指针）下面的液态玻璃：打开时涌出来，挨着的两个都开着时连成一块（macOS 26 起）
     private let toggleLens = NativeGlassLens(spacing: 8)
     private var toggles: [ToolbarButton] { [systemAudioButton, microphoneButton, cursorButton] }
@@ -47,7 +47,7 @@ final class RecordingOptionsBar: NSView {
             x += width + Self.spacing
         }
         func separator() {
-            panel.addSubview(GlassSeparator(frame: CGRect(x: x + 5, y: Self.padding + 8, width: 1.5, height: Self.buttonSize - 16)))
+            panel.addSubview(WarmSeparator(frame: CGRect(x: x + 5, y: Self.padding + 8, width: 1.5, height: Self.buttonSize - 16)))
             x += 13
         }
         add(systemAudioButton, width: Self.buttonSize)
@@ -157,9 +157,9 @@ final class RecordingOptionsBar: NSView {
         let current = Preferences.shared.microphoneDeviceID
         let devices = [("", "系统默认（\(AudioDevices.defaultDeviceName)）")]
             + AudioDevices.all().map { ($0.uniqueID, $0.localizedName) }
-        let items = devices.map { GlassMenu.Item(id: $0.0, title: $0.1, isSelected: $0.0 == current) }
+        let items = devices.map { WarmMenu.Item(id: $0.0, title: $0.1, isSelected: $0.0 == current) }
         let anchor = convert(deviceButton.frame, from: panel)
-        deviceMenu = GlassMenu.show(items: items, in: host, anchor: convert(anchor, to: host), blending: blending) { [weak self] id in
+        deviceMenu = WarmMenu.show(items: items, in: host, anchor: convert(anchor, to: host), blending: blending) { [weak self] id in
             Preferences.shared.microphoneDeviceID = id
             self?.enableMicrophone()
             self?.changed()

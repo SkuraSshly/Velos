@@ -7,12 +7,6 @@ extension NSUserInterfaceItemIdentifier {
 }
 
 extension NSWindow {
-    /// 普通窗口（设置）：跟到你当前所在的桌面打开，全屏 App 上面也能显示
-    func followActiveSpace() {
-        collectionBehavior.insert(.moveToActiveSpace)
-        collectionBehavior.insert(.fullScreenAuxiliary)
-    }
-
     /// 能调大小的普通窗口（设置、编辑截图、视频预览）：和其他 Mac App 一样可以全屏。
     /// 左上角绿色按钮显示两个对着的三角（点了全屏），按住 ⌥ 才变成 ➕（放大到合适大小）；
     /// 不标记的话系统认为它不能全屏，绿色按钮一直是 ➕。

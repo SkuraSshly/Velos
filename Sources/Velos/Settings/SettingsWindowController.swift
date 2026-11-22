@@ -217,7 +217,7 @@ private struct SettingsSidebar: View {
             Spacer()
         }
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(Color.settingsCard.opacity(0.45))
+        .background(Color.warmCard.opacity(0.45))
     }
 
     private func row(_ tab: SettingsTab) -> some View {
@@ -234,7 +234,7 @@ private struct SettingsSidebar: View {
         .frame(height: rowHeight)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.glassTrack)
+                .fill(Color.warmTrack)
                 .padding(.vertical, 2)
                 .opacity(!selected && selection.hovered == tab ? 1 : 0)
         )

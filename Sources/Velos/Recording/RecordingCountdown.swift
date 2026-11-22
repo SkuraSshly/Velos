@@ -83,7 +83,7 @@ final class RecordingCountdown: NSPanel {
     }
 
     private func applyColors() {
-        let palette = GlassPalette(for: card)
+        let palette = WarmPalette(for: card)
         numberLabel.textColor = palette.ink
     }
 

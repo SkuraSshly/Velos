@@ -225,7 +225,7 @@ private struct LLMPromptEditor: View {
                 .scrollContentBackground(.hidden)
                 .frame(height: 96)
                 .padding(6)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.glassTrack.opacity(0.6)))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.warmTrack.opacity(0.6)))
         }
         .padding(12)
     }

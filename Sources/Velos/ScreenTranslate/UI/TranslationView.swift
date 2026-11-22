@@ -64,7 +64,7 @@ struct TranslationView: View {
                     .font(.system(size: 11, weight: .bold))
                     .frame(width: 26, height: 24)
             }
-            .buttonStyle(GlassIconButtonStyle())
+            .buttonStyle(WarmIconButtonStyle())
             .help("交换语言")
             LanguageMenu(title: model.targetLanguage.displayName, help: "目标语言") {
                 Button("自动") { model.targetChoice = nil }
@@ -80,7 +80,7 @@ struct TranslationView: View {
                     .rotationEffect(.degrees(model.isPinned ? 0 : 45))
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(GlassIconButtonStyle(active: model.isPinned))
+            .buttonStyle(WarmIconButtonStyle(active: model.isPinned))
             .help(model.isPinned ? "取消钉住（⌘P）" : "钉住：置顶、点别处不关闭，可拖动、调整大小（⌘P）")
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: model.isPinned)
             Button(action: onClose) {
@@ -88,7 +88,7 @@ struct TranslationView: View {
                     .font(.system(size: 11, weight: .bold))
                     .frame(width: 24, height: 24)
             }
-            .buttonStyle(GlassIconButtonStyle())
+            .buttonStyle(WarmIconButtonStyle())
             .help("关闭（Esc）")
         }
         .frame(height: 30)
@@ -193,7 +193,7 @@ struct TranslationView: View {
             .foregroundStyle(Color.inkSecondary)
             .padding(.horizontal, 7)
             .frame(height: 20)
-            .background(Capsule().fill(Color.glassTrack.opacity(0.7)))
+            .background(Capsule().fill(Color.warmTrack.opacity(0.7)))
             .contentShape(Capsule())
         }
         .menuStyle(.button)
@@ -247,7 +247,7 @@ struct TranslationView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 26, height: 22)
         }
-        .buttonStyle(GlassIconButtonStyle(active: speaking))
+        .buttonStyle(WarmIconButtonStyle(active: speaking))
         .help(speaking ? "停止朗读" : "朗读")
         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
@@ -258,7 +258,7 @@ struct TranslationView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .frame(width: 26, height: 22)
         }
-        .buttonStyle(GlassIconButtonStyle())
+        .buttonStyle(WarmIconButtonStyle())
         .help("复制")
         .disabled(text.isEmpty)
     }
@@ -283,7 +283,7 @@ private struct PlaceholderLines: View {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(widths.indices, id: \.self) { index in
                     Capsule()
-                        .fill(Color.glassTrack)
+                        .fill(Color.warmTrack)
                         .frame(width: TranslationView.cardTextWidth * widths[index], height: 9)
                 }
             }
@@ -365,7 +365,7 @@ private struct DictionaryCard: View {
             .foregroundStyle(speaking ? Color.white : Color.ink)
             .padding(.horizontal, 8)
             .frame(height: 22)
-            .background(Capsule().fill(speaking ? AnyShapeStyle(Color.accent) : AnyShapeStyle(Color.glassTrack)))
+            .background(Capsule().fill(speaking ? AnyShapeStyle(Color.accent) : AnyShapeStyle(Color.warmTrack)))
         }
         .buttonStyle(.plain)
         .help("朗读（\(phonetic.label.isEmpty ? "普通话" : phonetic.label + "式发音")）")
@@ -386,7 +386,7 @@ private struct Card<Content: View>: View {
         .padding(.bottom, 8)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.settingsCard)
+                .fill(Color.warmCard)
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(tint))
         )
         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.hairline, lineWidth: 0.5))
@@ -411,7 +411,7 @@ private struct LanguageMenu<Items: View>: View {
             .foregroundStyle(Color.ink)
             .padding(.horizontal, 10)
             .frame(height: 24)
-            .background(Capsule().fill(Color.glassTrack))
+            .background(Capsule().fill(Color.warmTrack))
             .contentShape(Capsule())
         }
         .menuStyle(.button)
@@ -423,7 +423,7 @@ private struct LanguageMenu<Items: View>: View {
 }
 
 /// 小图标按钮：平时透明，悬停 / 按下时暖色底；active 时杏色
-struct GlassIconButtonStyle: ButtonStyle {
+struct WarmIconButtonStyle: ButtonStyle {
     var active = false
 
     func makeBody(configuration: Configuration) -> some View {
@@ -432,7 +432,7 @@ struct GlassIconButtonStyle: ButtonStyle {
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(active ? AnyShapeStyle(Color.accent)
-                                 : AnyShapeStyle(Color.glassTrack.opacity(configuration.isPressed ? 1.6 : 0.8)))
+                                 : AnyShapeStyle(Color.warmTrack.opacity(configuration.isPressed ? 1.6 : 0.8)))
             )
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .animation(.spring(response: 0.2, dampingFraction: 0.7), value: configuration.isPressed)

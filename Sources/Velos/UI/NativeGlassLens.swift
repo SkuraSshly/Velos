@@ -23,7 +23,7 @@ final class NativeGlassLens {
     ///   - spacing: 两块玻璃离多近就连成一滴（越大拉丝越长、越不容易断开）
     ///   - tint: 玻璃染的颜色
     init?(cornerRadius: CGFloat = GlassShape.selectionRadius, spacing: CGFloat = GlassShape.spacing,
-          tint: NSColor = GlassPalette.accent) {
+          tint: NSColor = WarmPalette.accent) {
         guard #available(macOS 26, *) else { return nil }
         model = LensModel(cornerRadius: cornerRadius, spacing: spacing, tint: Color(nsColor: tint))
         let host = PassThroughHostingView(rootView: AnyView(LensRow(model: model)))

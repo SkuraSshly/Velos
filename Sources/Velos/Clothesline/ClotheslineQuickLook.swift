@@ -221,9 +221,4 @@ final class ClotheslineQuickLook: NSObject, QLPreviewPanelDataSource, QLPreviewP
             return true
         }
     }
-
-    #if DEBUG
-    var debugHasSpaceKey: Bool { spaceKey != nil }
-    func debugSpace(down: Bool) { if down { spacePressed() } else { spaceReleased() } }
-    #endif
 }

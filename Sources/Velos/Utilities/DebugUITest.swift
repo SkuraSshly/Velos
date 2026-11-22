@@ -364,7 +364,7 @@ enum DebugUITest {
                     check("长截图编辑窗口：按宽度原大小打开、只显示一部分", long.debugCanvas.frame.width == 300 && z.frame.height < 3000
                           && z.minMagnification < 1, "\(long.debugCanvas.frame) \(z.frame)")
                     check("长截图编辑窗口：从最上面看起", abs(visible.maxY - (3000 + AnnotationEditorWindowController.margin * 2)) < 1, "\(visible)")
-                    check("长截图编辑窗口：右边有暖色滚动条，下面没有", z.verticalScroller is GlassScroller
+                    check("长截图编辑窗口：右边有暖色滚动条，下面没有", z.verticalScroller is WarmScroller
                           && z.verticalScroller?.isHidden == false && z.horizontalScroller?.isHidden != false,
                           "竖 \(String(describing: z.verticalScroller?.isHidden)) 横 \(String(describing: z.horizontalScroller?.isHidden))")
                     let canvasInWindow = long.debugCanvas.convert(long.debugCanvas.bounds, to: nil)

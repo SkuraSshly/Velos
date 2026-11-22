@@ -7,8 +7,6 @@ enum ImageEffects {
     /// 四周留出的空白（点）
     struct Insets: Equatable {
         var top: CGFloat, left: CGFloat, bottom: CGFloat, right: CGFloat
-
-        static func uniform(_ value: CGFloat) -> Insets { Insets(top: value, left: value, bottom: value, right: value) }
     }
 
     // MARK: - 窗口阴影

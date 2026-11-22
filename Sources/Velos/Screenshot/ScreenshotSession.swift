@@ -14,7 +14,7 @@ import ScreenCaptureKit
 /// 6. Enter 从冻结的底图裁剪出结果；Esc 随时取消；结束后把焦点还给原来的 App
 ///
 /// 截屏翻译（⌥D）也用这一套界面，区别是：没有标注工具栏和放大镜；松开鼠标（拖出选区或单击窗口）立即识别，
-/// 全屏模式按 Enter 识别整块屏幕；结果交给 onTranslate。
+/// 全屏模式直接识别整块屏幕；结果交给 onTranslate。
 @MainActor
 final class ScreenshotSession: OverlayEventHandler {
     enum Purpose {
@@ -55,7 +55,7 @@ final class ScreenshotSession: OverlayEventHandler {
 
     private var displays: [CGDirectDisplayID: FrozenDisplay] = [:]
     private var overlays: [CGDirectDisplayID: OverlayWindow] = [:]
-    /// 鼠标所在的屏幕：全屏模式截取这一块，提示条也显示在这一块上
+    /// 鼠标所在的屏幕：全屏模式截取这一块
     private var activeDisplayID: CGDirectDisplayID = 0
     /// 最近一次鼠标位置（全局坐标）
     private var mousePoint = NSEvent.mouseLocation
@@ -611,7 +611,7 @@ final class ScreenshotSession: OverlayEventHandler {
         magnifier.place(near: CGPoint(x: mousePoint.x - origin.x, y: mousePoint.y - origin.y), in: view.bounds)
     }
 
-    /// 记录鼠标位置；换到另一块屏幕时更新全屏模式的目标和提示条位置
+    /// 记录鼠标位置；换到另一块屏幕时更新全屏模式的目标
     private func track(_ point: NSPoint) {
         mousePoint = point
         if let id = NSScreen.screen(containing: point)?.displayID, displays[id] != nil {

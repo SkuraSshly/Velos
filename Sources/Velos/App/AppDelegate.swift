@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DebugRecordingTest.runIfRequested()
         DebugFeatureTest.runIfRequested()
         DebugSplitTest.runIfRequested()
+        DebugSoundTest.runIfRequested()
         DebugShowcase.runIfRequested()
         DebugShowcase.runSettingsShotsIfRequested()
         #endif
